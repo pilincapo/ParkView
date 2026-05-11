@@ -18,6 +18,24 @@ service cloud.firestore {
       );
     }
 
+    function isMember(establishmentId) {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/establishments/$(establishmentId)) &&
+             get(/databases/$(database)/documents/establishments/$(establishmentId)).data.members.hasAny([request.auth.uid]);
+    }
+
+    function isEstablishmentOwner(establishmentId) {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/establishments/$(establishmentId)).data.ownerId == request.auth.uid;
+    }
+
+    function isSuperAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'pilin123@gmail.com'
+      );
+    }
+
     function isValidId(id) {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -32,60 +50,81 @@ service cloud.firestore {
 
     // --- Entity Validations ---
 
+    function isValidEstablishment(data) {
+      return data.keys().hasAll(['name', 'ownerId', 'members', 'settings']) &&
+             data.name is string && data.name.size() > 0 &&
+             data.ownerId is string &&
+             data.members is list &&
+             isValidSetting(data.settings);
+    }
+
     function isValidVehicle(data) {
-      return data.keys().hasAll(['plate', 'slotId', 'vehicleType', 'entryTime', 'status', 'ownerId']) &&
+      return data.keys().hasAll(['plate', 'slotId', 'vehicleType', 'entryTime', 'status', 'ownerId', 'establishmentId']) &&
              data.plate is string &&
              data.slotId is string &&
              data.vehicleType in ['car', 'motorcycle'] &&
              data.status in ['active', 'completed'] &&
              data.ownerId is string &&
+             data.establishmentId is string &&
              (data.keys().hasAny(['entryTime']) ? data.entryTime is timestamp : true) &&
              (data.keys().hasAny(['exitTime']) ? data.exitTime is timestamp || data.exitTime == null : true) &&
              (data.keys().hasAny(['totalAmount']) ? data.totalAmount is number : true);
     }
 
     function isValidMonthlyPass(data) {
-      return data.keys().hasAll(['plate', 'vehicleType', 'startDate', 'endDate', 'amount', 'status', 'ownerId']) &&
-             data.keys().size() == 7 &&
-             data.plate is string && data.plate.size() >= 1 && data.plate.size() <= 20 &&
+      return data.keys().hasAll(['plate', 'vehicleType', 'startDate', 'endDate', 'amount', 'status', 'ownerId', 'establishmentId']) &&
+             data.plate is string &&
              data.vehicleType in ['car', 'motorcycle'] &&
              data.startDate is timestamp &&
              data.endDate is timestamp &&
              data.amount is number &&
              data.status in ['active', 'expired'] &&
-             data.ownerId is string && data.ownerId.size() >= 1;
+             data.ownerId is string &&
+             data.establishmentId is string;
     }
 
     function isValidSetting(data) {
-      return data.keys().hasAll(['hourlyRate', 'motoHourlyRate', 'carSlots', 'motoSlots', 'totalSlots', 'updatedBy', 'updatedAt', 'monthlyRate', 'motoMonthlyRate']) &&
-             data.keys().size() == 9 &&
-             data.hourlyRate is number && data.hourlyRate >= 0 &&
-             data.motoHourlyRate is number && data.motoHourlyRate >= 0 &&
-             data.monthlyRate is number && data.monthlyRate >= 0 &&
-             data.motoMonthlyRate is number && data.motoMonthlyRate >= 0 &&
-             data.carSlots is number && data.carSlots >= 1 && data.carSlots <= 500 &&
-             data.motoSlots is number && data.motoSlots >= 1 && data.motoSlots <= 500 &&
-             data.totalSlots is number && data.totalSlots >= 1 &&
-             data.updatedBy is string &&
-             (data.updatedAt is timestamp || data.updatedAt == request.time);
+      return data.keys().hasAll(['hourlyRate', 'motoHourlyRate', 'carSlots', 'motoSlots', 'totalSlots', 'updatedBy', 'monthlyRate', 'motoMonthlyRate']) &&
+             data.hourlyRate is number &&
+             data.motoHourlyRate is number &&
+             data.monthlyRate is number &&
+             data.motoMonthlyRate is number &&
+             data.carSlots is number &&
+             data.motoSlots is number &&
+             data.totalSlots is number &&
+             data.updatedBy is string;
     }
 
     // --- Rules ---
 
+    match /establishments/{establishmentId} {
+      allow get: if isSignedIn() && (resource.data.members.hasAny([request.auth.uid]) || isSuperAdmin());
+      allow list: if isSignedIn() && (resource.data.members.hasAny([request.auth.uid]) || isSuperAdmin());
+      allow create: if isVerified() && isSuperAdmin() && isValidEstablishment(incoming());
+      allow update: if isVerified() && (isEstablishmentOwner(establishmentId) || isSuperAdmin()) && isValidEstablishment(incoming());
+      allow delete: if isVerified() && isSuperAdmin();
+    }
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Only manual via console for security
+    }
+
     match /vehicles/{vehicleId} {
-      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow get: if isMember(existing().establishmentId);
+      allow list: if isSignedIn() && isMember(resource.data.establishmentId);
       
       allow create: if isVerified() && 
                     isValidId(vehicleId) && 
                     isValidVehicle(incoming()) &&
+                    isMember(incoming().establishmentId) &&
                     incoming().ownerId == request.auth.uid &&
-                    incoming().status == 'active' &&
-                    incoming().entryTime == request.time;
+                    incoming().status == 'active';
       
       allow update: if isVerified() &&
                     isValidId(vehicleId) &&
-                    existing().ownerId == request.auth.uid &&
+                    isMember(existing().establishmentId) &&
+                    incoming().establishmentId == existing().establishmentId &&
                     incoming().ownerId == existing().ownerId &&
                     (
                       // Action: Complete Stay
@@ -100,11 +139,14 @@ service cloud.firestore {
     }
 
     match /monthlyPasses/{passId} {
-      allow get, list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow create: if isVerified() && isValidId(passId) && isValidMonthlyPass(incoming()) && incoming().ownerId == request.auth.uid;
+      allow get, list: if isSignedIn() && isMember(resource.data.establishmentId);
+      allow create: if isVerified() && isValidId(passId) && isValidMonthlyPass(incoming()) && 
+                    isMember(incoming().establishmentId) &&
+                    incoming().ownerId == request.auth.uid;
       allow update: if isVerified() && isValidId(passId) && isValidMonthlyPass(incoming()) && 
-                    existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId;
-      allow delete: if isVerified() && existing().ownerId == request.auth.uid;
+                    isMember(existing().establishmentId) && 
+                    incoming().ownerId == existing().ownerId;
+      allow delete: if isVerified() && isMember(existing().establishmentId);
     }
 
     match /settings/parking {

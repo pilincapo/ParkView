@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { auth, login, logout, db } from './lib/firebase';
+import { auth, login, loginWithEmail, logout, db } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
   collection, 
@@ -16,6 +16,7 @@ import {
   doc, 
   serverTimestamp,
   getDoc,
+  getDocFromServer,
   setDoc,
   deleteDoc,
   Timestamp,
@@ -33,23 +34,34 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  Menu,
   Activity,
-  LayoutDashboard,
-  BarChart3,
   Sun,
-  Moon
+  Moon,
+  ChevronDown,
+  Building2,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatCurrency } from './lib/utils';
-import { Vehicle, VehicleStatus, ParkingSettings, OperationType } from './types';
+import { Establishment, Vehicle, VehicleStatus, ParkingSettings, OperationType } from './types';
 import { handleFirestoreError } from './lib/error-handler';
+import { EstablishmentsView } from './components/EstablishmentsView';
+
+// Super admin email - user can manage all establishments
+const SUPER_ADMIN_EMAIL = 'pilin123@gmail.com';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // Establishments state
+  const [establishments, setEstablishments] = useState<Establishment[]>([]);
+  const [selectedEstId, setSelectedEstId] = useState<string | null>(localStorage.getItem('selectedEstId'));
+  const currentEst = establishments.find(e => e.id === selectedEstId) || null;
+
   const [activeVehicles, setActiveVehicles] = useState<Vehicle[]>([]);
   const [history, setHistory] = useState<Vehicle[]>([]);
   const [settings, setSettings] = useState<ParkingSettings | null>(null);
@@ -59,7 +71,7 @@ export default function App() {
     }
     return false;
   });
-  const [activeView, setActiveView] = useState<'monitor' | 'entry' | 'activity' | 'history' | 'reports' | 'settings' | 'monthly'>('monitor');
+  const [activeView, setActiveView] = useState<'monitor' | 'entry' | 'activity' | 'history' | 'reports' | 'settings' | 'monthly' | 'establishments'>('monitor');
   const [plate, setPlate] = useState('');
   const [selectedVehicleType, setSelectedVehicleType] = useState<'car' | 'motorcycle'>('car');
   const [selectedEntryType, setSelectedEntryType] = useState<'daily' | 'monthly'>('daily');
@@ -85,6 +97,25 @@ export default function App() {
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-01'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [reportData, setReportData] = useState<Vehicle[]>([]);
+
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginEmail || !loginPassword) return;
+    setLoginLoading(true);
+    setLoginError(null);
+    try {
+      await loginWithEmail(loginEmail, loginPassword);
+    } catch (error: any) {
+      setLoginError('Credenciales incorrectas');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
   const [selectedSlot, setSelectedSlot] = useState<string>('');
 
@@ -130,18 +161,62 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
+      if (u) {
+        setIsSuperAdmin(u.email === SUPER_ADMIN_EMAIL);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // Listen to active vehicles
+  // Test connection to Firestore
+  useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(db, 'establishments', 'connection-test'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    }
+    if (user) testConnection();
+  }, [user]);
+
+  // Listen to establishments where user is a member
   useEffect(() => {
     if (!user) return;
 
+    const q = isSuperAdmin 
+      ? collection(db, 'establishments')
+      : query(
+          collection(db, 'establishments'),
+          where('members', 'array-contains', user.uid)
+        );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Establishment));
+      setEstablishments(ests);
+      
+      // Auto-select first establishment if none selected
+      if (ests.length > 0 && !selectedEstId) {
+        setSelectedEstId(ests[0].id || null);
+        localStorage.setItem('selectedEstId', ests[0].id || '');
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'establishments');
+    });
+
+    return () => unsubscribe();
+  }, [user, isSuperAdmin]);
+
+  // Listen to active vehicles
+  useEffect(() => {
+    if (!user || !selectedEstId) return;
+
     const q = query(
       collection(db, 'vehicles'),
-      where('ownerId', '==', user.uid),
+      where('establishmentId', '==', selectedEstId),
       where('status', '==', VehicleStatus.ACTIVE),
       orderBy('entryTime', 'desc')
     );
@@ -150,58 +225,29 @@ export default function App() {
       const vehicles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
       setActiveVehicles(vehicles);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'vehicles');
+      handleFirestoreError(error, OperationType.LIST, `vehicles (est: ${selectedEstId})`);
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, selectedEstId]);
 
-  // Listen to settings
+  // Listen to settings for the selected establishment
   useEffect(() => {
-    if (!user) return;
+    if (!user || !selectedEstId) return;
 
-    const settingsRef = doc(db, 'settings', 'parking');
-    const unsubscribe = onSnapshot(settingsRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setSettings({
-          ...data,
-          carSlots: data.carSlots || 40,
-          motoSlots: data.motoSlots || 20,
-          motoHourlyRate: data.motoHourlyRate || 500,
-          monthlyRate: data.monthlyRate || 25000,
-          motoMonthlyRate: data.motoMonthlyRate || 12000,
-        } as ParkingSettings);
-      } else {
-        // Initialize default settings if not exists
-        const defaultSettings = {
-          hourlyRate: 1000,
-          motoHourlyRate: 500,
-          monthlyRate: 25000,
-          motoMonthlyRate: 12000,
-          carSlots: 40,
-          motoSlots: 20,
-          totalSlots: 60,
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp()
-        };
-        setDoc(settingsRef, defaultSettings);
-      }
-    }, (error) => {
-      console.warn('Settings fetch error:', error);
-      handleFirestoreError(error, OperationType.GET, 'settings/parking');
-    });
-
-    return () => unsubscribe();
-  }, [user]);
+    const current = establishments.find(e => e.id === selectedEstId);
+    if (current?.settings) {
+      setSettings(current.settings);
+    }
+  }, [selectedEstId, establishments]);
 
   // Listen to history for the list
   useEffect(() => {
-    if (!user || activeView !== 'history') return;
+    if (!user || !selectedEstId || activeView !== 'history') return;
 
     const q = query(
       collection(db, 'vehicles'),
-      where('ownerId', '==', user.uid),
+      where('establishmentId', '==', selectedEstId),
       where('status', '==', VehicleStatus.COMPLETED),
       orderBy('exitTime', 'desc'),
       limit(50)
@@ -211,15 +257,15 @@ export default function App() {
       const vehicles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
       setHistory(vehicles);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'vehicles');
+      handleFirestoreError(error, OperationType.LIST, 'vehicles history');
     });
 
     return () => unsubscribe();
-  }, [user, activeView]);
+  }, [user, selectedEstId, activeView]);
 
   // Fetch data for reports based on date range
   useEffect(() => {
-    if (!user || activeView !== 'reports') return;
+    if (!user || !selectedEstId || activeView !== 'reports') return;
 
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -227,7 +273,7 @@ export default function App() {
 
     const q = query(
       collection(db, 'vehicles'),
-      where('ownerId', '==', user.uid),
+      where('establishmentId', '==', selectedEstId),
       where('status', '==', VehicleStatus.COMPLETED),
       where('exitTime', '>=', Timestamp.fromDate(start)),
       where('exitTime', '<=', Timestamp.fromDate(end))
@@ -241,15 +287,15 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user, activeView, startDate, endDate]);
+  }, [user, selectedEstId, activeView, startDate, endDate]);
 
   // Listen to monthly passes
   useEffect(() => {
-    if (!user) return;
+    if (!user || !selectedEstId) return;
 
     const q = query(
       collection(db, 'monthlyPasses'),
-      where('ownerId', '==', user.uid),
+      where('establishmentId', '==', selectedEstId),
       where('status', '==', 'active')
     );
 
@@ -261,11 +307,11 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, selectedEstId]);
 
   const handleEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !plate.trim() || !selectedSlot) return;
+    if (!user || !plate.trim() || !selectedSlot || !selectedEstId) return;
 
     // Check if slot is already occupied
     if (activeVehicles.some(v => v.slotId === selectedSlot)) {
@@ -290,7 +336,8 @@ export default function App() {
         exitTime: null,
         status: VehicleStatus.ACTIVE,
         totalAmount: 0,
-        ownerId: user.uid
+        ownerId: user.uid,
+        establishmentId: selectedEstId
       });
       setPlate('');
       setSelectedSlot('');
@@ -307,7 +354,7 @@ export default function App() {
 
   const handleAddMonthlyPass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !selectedEstId) return;
     const formData = new FormData(e.currentTarget as HTMLFormElement);
     const plateVal = formData.get('plate')?.toString().toUpperCase();
     const type = formData.get('vehicleType')?.toString() as 'car' | 'motorcycle';
@@ -333,7 +380,8 @@ export default function App() {
         endDate: Timestamp.fromDate(nextMonth),
         amount,
         status: 'active',
-        ownerId: user.uid
+        ownerId: user.uid,
+        establishmentId: selectedEstId
       });
       (e.target as HTMLFormElement).reset();
       setActiveView('monitor');
@@ -383,9 +431,9 @@ export default function App() {
   };
 
   const updateSettings = async (carRate: number, motoRate: number, carSlots: number, motoSlots: number, monthlyRate: number, motoMonthlyRate: number) => {
-    if (!user) return;
+    if (!user || !selectedEstId || !currentEst) return;
     try {
-      await setDoc(doc(db, 'settings', 'parking'), {
+      const newSettings = {
         hourlyRate: carRate,
         motoHourlyRate: motoRate,
         monthlyRate,
@@ -395,10 +443,13 @@ export default function App() {
         totalSlots: carSlots + motoSlots,
         updatedBy: user.uid,
         updatedAt: serverTimestamp()
+      };
+      await updateDoc(doc(db, 'establishments', selectedEstId), {
+        settings: newSettings
       });
       setActiveView('monitor');
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'settings/parking');
+      handleFirestoreError(error, OperationType.WRITE, `establishments/${selectedEstId}`);
     }
   };
 
@@ -429,7 +480,7 @@ export default function App() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white p-10 max-w-md w-full rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50"
+        className="bg-white p-10 max-w-md w-full rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50"
       >
         <div className="flex items-center gap-3 mb-8">
           <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
@@ -440,15 +491,54 @@ export default function App() {
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Gestión Centralizada</p>
           </div>
         </div>
+        
         <p className="text-slate-600 mb-8 leading-relaxed text-sm">
-          Bienvenido al sistema de control de estacionamiento. Inicie sesión para gestionar ingresos, egresos y tarifas en tiempo real.
+          Bienvenido al sistema de control de estacionamiento. Inicie sesión para gestionar su cochera.
         </p>
+
+        <form onSubmit={handleEmailLogin} className="space-y-4 mb-8 border-b pb-8 border-slate-100">
+          <div className="space-y-1">
+             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email</label>
+             <input 
+               type="email"
+               value={loginEmail}
+               onChange={(e) => setLoginEmail(e.target.value)}
+               className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 font-bold"
+               placeholder="nombre@ejemplo.com"
+               required
+             />
+          </div>
+          <div className="space-y-1">
+             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contraseña</label>
+             <input 
+               type="password"
+               value={loginPassword}
+               onChange={(e) => setLoginPassword(e.target.value)}
+               className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 font-bold"
+               placeholder="••••••••"
+               required
+             />
+          </div>
+
+          {loginError && (
+             <p className="text-red-500 text-[10px] font-bold uppercase text-center">{loginError}</p>
+          )}
+
+          <button 
+            type="submit"
+            disabled={loginLoading}
+            className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs tracking-widest hover:bg-black transition-all disabled:opacity-50"
+          >
+            {loginLoading ? 'INGRESANDO...' : 'INICIAR SESIÓN'}
+          </button>
+        </form>
+
         <button 
           onClick={login}
-          className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-4 px-6 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 group"
+          className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 py-4 px-6 rounded-2xl font-bold hover:bg-slate-50 transition-all group"
         >
           <LogIn className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-          Continuar con Google
+          Acceder con Google
         </button>
       </motion.div>
     </div>
@@ -521,9 +611,39 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex items-center gap-1 md:gap-2">
-          {/* Dark Mode Toggle */}
-          <button
+          <div className="flex items-center gap-1 md:gap-2">
+            {/* Establishment Selector */}
+            {establishments.length > 0 && (
+              <div className="relative group mr-2">
+                <select
+                  value={selectedEstId || ''}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setSelectedEstId(id);
+                    localStorage.setItem('selectedEstId', id);
+                    setActiveView('monitor');
+                  }}
+                  className={cn(
+                    "appearance-none bg-transparent pl-4 pr-10 py-2.5 rounded-xl border font-bold text-sm focus:outline-none transition-all cursor-pointer",
+                    isDarkMode 
+                      ? "border-slate-800 text-slate-300 hover:bg-slate-800" 
+                      : "border-slate-100 text-slate-600 hover:bg-slate-50"
+                  )}
+                >
+                  {establishments.map(est => (
+                    <option key={est.id} value={est.id} className={isDarkMode ? "bg-slate-900" : "bg-white"}>
+                      {est.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+                  <ChevronDown className="w-4 h-4" />
+                </div>
+              </div>
+            )}
+
+            {/* Dark Mode Toggle */}
+            <button
             onClick={() => setIsDarkMode(!isDarkMode)}
             className={cn(
               "p-2.5 rounded-xl transition-all border group relative",
@@ -538,32 +658,33 @@ export default function App() {
               <motion.div initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }}><Moon className="w-5 h-5" /></motion.div>}
           </button>
 
-          <div className="hidden md:flex items-center gap-1">
-            {[
-              { id: 'monitor', icon: Activity, label: 'Monitor' },
-              { id: 'history', icon: HistoryIcon, label: 'Historial' },
-              { id: 'monthly', icon: CheckCircle2, label: 'Abonados' },
-              { id: 'reports', icon: Search, label: 'Reportes' },
-              { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
-            ].map((v) => (
-              <button 
-                key={v.id}
-                onClick={() => setActiveView(v.id as any)}
-                className={cn(
-                  "p-2.5 rounded-xl transition-all border group relative",
-                  activeView === v.id 
-                    ? "bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-100" 
-                    : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300" : "bg-white border-transparent text-slate-400 hover:bg-slate-50 hover:text-slate-600")
-                )}
-                title={v.label}
-              >
-                <v.icon className={cn("w-5 h-5", activeView === v.id ? "scale-110" : "")} />
-                {activeView === v.id && (
-                  <motion.div layoutId="header-active" className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full" />
-                )}
-              </button>
-            ))}
-          </div>
+              <div className="hidden md:flex items-center gap-1">
+                {[
+                  { id: 'monitor', icon: Activity, label: 'Monitor' },
+                  { id: 'history', icon: HistoryIcon, label: 'Historial' },
+                  { id: 'monthly', icon: CheckCircle2, label: 'Abonados' },
+                  { id: 'reports', icon: Search, label: 'Reportes' },
+                  { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
+                  ...(isSuperAdmin ? [{ id: 'establishments', icon: Building2, label: 'Cocheras' }] : []),
+                ].map((v) => (
+                  <button 
+                    key={v.id}
+                    onClick={() => setActiveView(v.id as any)}
+                    className={cn(
+                      "p-2.5 rounded-xl transition-all border group relative",
+                      activeView === v.id 
+                        ? "bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-100" 
+                        : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300" : "bg-white border-transparent text-slate-400 hover:bg-slate-50 hover:text-slate-600")
+                    )}
+                    title={v.label}
+                  >
+                    <v.icon className={cn("w-5 h-5", activeView === v.id ? "scale-110" : "")} />
+                    {activeView === v.id && (
+                      <motion.div layoutId="header-active" className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full" />
+                    )}
+                  </button>
+                ))}
+              </div>
           <div className={cn("hidden md:block w-[1px] h-6 mx-2 transition-colors duration-500", isDarkMode ? "bg-slate-800" : "bg-slate-200")} />
           <button 
             onClick={logout}
@@ -716,11 +837,12 @@ export default function App() {
             <h2 className={cn("font-black mb-6 text-xs uppercase tracking-[0.2em]", isDarkMode ? "text-slate-400" : "text-slate-900")}>Opciones</h2>
             <div className="grid grid-cols-2 gap-4">
               {[
-                { id: 'monitor', icon: LayoutDashboard, label: 'Cocheras' },
+                { id: 'monitor', icon: Activity, label: 'Cocheras' },
                 { id: 'history', icon: HistoryIcon, label: 'Historial' },
                 { id: 'monthly', icon: CheckCircle2, label: 'Abonos' },
-                { id: 'reports', icon: BarChart3, label: 'Estadísticas' },
+                { id: 'reports', icon: Search, label: 'Estadísticas' },
                 { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
+                ...(isSuperAdmin ? [{ id: 'establishments', icon: Building2, label: 'Admin' }] : []),
               ].map((v) => (
                 <button 
                   key={v.id}
@@ -800,8 +922,37 @@ export default function App() {
           </div>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-hide pb-32 md:pb-8 relative">
-            <AnimatePresence mode="wait">
-              {activeView === 'activity' ? (
+          <AnimatePresence mode="wait">
+              { activeView === 'monitor' && !selectedEstId ? (
+                <motion.div 
+                  key="no-establishment"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="h-full flex items-center justify-center"
+                >
+                  <div className="text-center p-8">
+                    <Building2 className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                    <h2 className="text-xl font-black mb-2">No hay cocheras seleccionadas</h2>
+                    <p className="text-slate-500 mb-6 max-w-xs mx-auto">Selecciona una cochera o crea una nueva para comenzar a operar.</p>
+                    {isSuperAdmin && (
+                      <button 
+                        onClick={() => setActiveView('establishments')}
+                        className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all"
+                      >
+                        Gestionar Cocheras
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              ) : activeView === 'establishments' ? (
+                <EstablishmentsView 
+                  user={user} 
+                  isSuperAdmin={isSuperAdmin} 
+                  establishments={establishments} 
+                  isDarkMode={isDarkMode}
+                />
+              ) : activeView === 'activity' ? (
                 <motion.div 
                   key="mobile-activity"
                   initial={{ opacity: 0, x: 20 }}

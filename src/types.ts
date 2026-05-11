@@ -16,6 +16,7 @@ export interface Vehicle {
   status: VehicleStatus;
   totalAmount: number;
   ownerId: string;
+  establishmentId: string;
 }
 
 export interface MonthlyPass {
@@ -27,6 +28,16 @@ export interface MonthlyPass {
   ownerId: string;
   amount: number;
   status: 'active' | 'expired';
+  establishmentId: string;
+}
+
+export interface Establishment {
+  id?: string;
+  name: string;
+  address: string;
+  ownerId: string;
+  members: string[];
+  settings: ParkingSettings;
 }
 
 export interface ParkingSettings {

@@ -1,10 +1,27 @@
 {
   "entities": {
+    "Establishment": {
+      "title": "Establishment",
+      "description": "Represents a parking lot establishment.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "members": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "settings": { "$ref": "Setting" }
+      },
+      "required": ["name", "ownerId", "members", "settings"]
+    },
     "Vehicle": {
       "title": "Vehicle",
       "description": "Represents a vehicle in the parking lot or its history.",
       "type": "object",
       "properties": {
+        "establishmentId": { "type": "string" },
         "plate": {
           "type": "string",
           "description": "License plate of the vehicle."
@@ -47,13 +64,14 @@
           "description": "UID of the staff member who registered the vehicle."
         }
       },
-      "required": ["plate", "slotId", "vehicleType", "entryType", "entryTime", "status", "ownerId"]
+      "required": ["plate", "slotId", "vehicleType", "entryType", "entryTime", "status", "ownerId", "establishmentId"]
     },
     "MonthlyPass": {
       "title": "MonthlyPass",
       "description": "Represents a monthly parking subscription for a specific license plate.",
       "type": "object",
       "properties": {
+        "establishmentId": { "type": "string" },
         "plate": {
           "type": "string",
           "description": "License plate associated with the pass."
@@ -87,7 +105,7 @@
           "description": "UID of the staff member who created the subscription."
         }
       },
-      "required": ["plate", "vehicleType", "startDate", "endDate", "amount", "status", "ownerId"]
+      "required": ["plate", "vehicleType", "startDate", "endDate", "amount", "status", "ownerId", "establishmentId"]
     },
     "Setting": {
       "title": "Setting",
@@ -136,17 +154,17 @@
     }
   },
   "firestore": {
+    "/establishments": {
+      "schema": "Establishment",
+      "description": "Collection of all parking establishments."
+    },
     "/vehicles": {
       "schema": "Vehicle",
-      "description": "Collection of all parking sessions."
+      "description": "Collection of all parking sessions scoped by establishment."
     },
     "/monthlyPasses": {
       "schema": "MonthlyPass",
-      "description": "Collection of monthly subscriptions."
-    },
-    "/settings/parking": {
-      "schema": "Setting",
-      "description": "Singleton document for parking rates."
+      "description": "Collection of monthly subscriptions scoped by establishment."
     }
   }
 }
