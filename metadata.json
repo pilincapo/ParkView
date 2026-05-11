@@ -1,0 +1,6 @@
+{
+  "name": "ParkFlow",
+  "description": "Sistema de gestión integral para estacionamientos con control de ingresos, egresos y cálculo de tarifas dinámicas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Represents a vehicle in the parking lot or its history.",
+      "type": "object",
+      "properties": {
+        "plate": {
+          "type": "string",
+          "description": "License plate of the vehicle."
+        },
+        "slotId": {
+          "type": "string",
+          "description": "Identifier of the assigned parking slot."
+        },
+        "entryTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of entry."
+        },
+        "exitTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of exit (null if currently parked)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "completed"],
+          "description": "Status of the parking session."
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Calculated cost of the stay."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the staff member who registered the vehicle."
+        }
+      },
+      "required": ["plate", "slotId", "entryTime", "status", "ownerId"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Global parking configuration.",
+      "type": "object",
+      "properties": {
+        "hourlyRate": {
+          "type": "number",
+          "description": "Price per hour or fraction of hour."
+        },
+        "totalSlots": {
+          "type": "number",
+          "description": "Total number of available parking spaces."
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "UID of the staff member who last updated settings."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of last update."
+        }
+      },
+      "required": ["hourlyRate", "totalSlots", "updatedBy", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/vehicles": {
+      "schema": "Vehicle",
+      "description": "Collection of all parking sessions."
+    },
+    "/settings/parking": {
+      "schema": "Setting",
+      "description": "Singleton document for parking rates."
+    }
+  }
+}
