@@ -5,6 +5,7 @@ import { auth, db, createStaffUser } from '../lib/firebase';
 import { Establishment, OperationType } from '../types';
 import { handleFirestoreError } from '../lib/error-handler';
 import { Building2, Plus, Users, Trash2, ShieldCheck, Mail, Lock, AlertCircle } from 'lucide-react';
+import { StylizedLetterA } from './Icons';
 import { cn } from '../lib/utils';
 import { User as FirebaseUser } from 'firebase/auth';
 
@@ -173,9 +174,9 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
               >
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white shadow-lg overflow-hidden relative">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-lg overflow-hidden relative">
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.2),transparent)]" />
-                      <Building2 className="w-7 h-7" />
+                      <StylizedLetterA className="w-8 h-8" />
                     </div>
                     <div>
                       <h4 className="font-black text-xl tracking-tight leading-none mb-1">{est.name}</h4>

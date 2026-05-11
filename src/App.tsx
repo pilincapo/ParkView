@@ -48,6 +48,7 @@ import { cn, formatCurrency } from './lib/utils';
 import { Establishment, Vehicle, VehicleStatus, ParkingSettings, OperationType } from './types';
 import { handleFirestoreError } from './lib/error-handler';
 import { EstablishmentsView } from './components/EstablishmentsView';
+import { StylizedLetterA } from './components/Icons';
 
 // Super admin email - user can manage all establishments
 const SUPER_ADMIN_EMAIL = 'pilin123@gmail.com';
@@ -457,11 +458,11 @@ export default function App() {
     <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center font-sans overflow-hidden relative">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,#EEF2FF_0%,transparent_50%)]" />
       <div className="flex flex-col items-center gap-6 relative z-10">
-        <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-3xl flex items-center justify-center shadow-2xl shadow-indigo-200 animate-bounce">
-          <Car className="text-white w-8 h-8" />
+        <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-700 rounded-[2rem] flex items-center justify-center shadow-[0_20px_50px_rgba(59,130,246,0.3)] animate-pulse">
+          <StylizedLetterA className="text-white w-10 h-10" />
         </div>
         <div className="flex flex-col items-center gap-2">
-          <p className="text-slate-900 font-black tracking-[0.3em] text-[10px] uppercase">ParkFlow Pro</p>
+          <p className="text-slate-900 font-black tracking-[0.4em] text-[12px] uppercase">CocheraFlow AR</p>
           <div className="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
             <motion.div 
               initial={{ width: "0%" }}
@@ -483,12 +484,12 @@ export default function App() {
         className="bg-white p-10 max-w-md w-full rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50"
       >
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
-            <Car className="w-7 h-7" />
+          <div className="w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-200/50">
+            <StylizedLetterA className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight leading-none">ParkFlow</h1>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Gestión Centralizada</p>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">CocheraFlow</h1>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Sistemas Argentinos</p>
           </div>
         </div>
         
@@ -563,23 +564,33 @@ export default function App() {
 
       {/* Header */}
       <header className={cn(
-        "h-16 md:h-20 backdrop-blur-xl border-b flex items-center justify-between px-4 md:px-8 shrink-0 z-50 transition-colors duration-500",
-        isDarkMode ? "bg-slate-900/80 border-slate-800" : "bg-white/70 border-slate-100"
+        "h-16 md:h-20 backdrop-blur-2xl border-b flex items-center justify-between px-4 md:px-8 shrink-0 z-50 transition-all duration-500",
+        isDarkMode ? "bg-slate-900/40 border-slate-800 shadow-[0_4px_30px_rgba(0,0,0,0.1)]" : "bg-white/40 border-slate-100 shadow-[0_4px_30px_rgba(0,0,0,0.02)]"
       )}>
-        <div className="flex items-center gap-2 md:gap-3">
-          <div className="w-9 h-9 md:w-10 md:h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white cursor-pointer shadow-lg shadow-blue-200" onClick={() => setActiveView('monitor')}>
-            <Car className="w-5 h-5 md:w-6 md:h-6" />
+        <div className="flex items-center gap-2 md:gap-4">
+          <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center text-white cursor-pointer shadow-[0_8px_20px_rgba(37,99,235,0.3)]" onClick={() => setActiveView('monitor')}>
+            <StylizedLetterA className="w-6 h-6 md:w-7 md:h-7" />
           </div>
           <div className="relative group">
             <h1 className={cn(
-              "font-black text-lg md:text-xl tracking-tight leading-none bg-gradient-to-r from-blue-700 to-blue-500 bg-clip-text text-transparent transition-all duration-300",
-              isDarkMode && "from-blue-400 to-blue-300"
-            )}>Cochera Pro</h1>
-            <p className="text-[9px] md:text-[10px] text-slate-500 font-extrabold uppercase tracking-widest mt-0.5">Sucursal Central</p>
+              "font-black text-xl md:text-2xl tracking-tighter leading-none transition-all duration-300 flex items-center gap-2",
+              isDarkMode ? "text-white" : "text-slate-900"
+            )}>
+              Cochera <span className="bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent">Pro</span>
+              <svg className="w-6 h-6 text-blue-500/20 absolute -top-3 -right-6 scale-150 rotate-12" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="8" />
+              </svg>
+            </h1>
+            <p className="text-[9px] md:text-[10px] text-slate-500 font-extrabold uppercase tracking-widest mt-0.5">Gestión de Playa</p>
             {/* SVG stylized pattern for the title */}
-            <div className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-blue-500/20 group-hover:scale-150 transition-transform blur-sm" />
-            <svg className="absolute -bottom-1 left-0 w-full h-1 overflow-visible" viewBox="0 0 100 4" preserveAspectRatio="none">
-              <path d="M0 2 Q 25 0, 50 2 T 100 2" stroke="currentColor" strokeWidth="1" fill="none" className="text-blue-500/30" />
+            <svg className="absolute -bottom-2 left-0 w-full h-1 overflow-visible" viewBox="0 0 100 4" preserveAspectRatio="none">
+              <path d="M0 2 C 20 0, 40 4, 60 2 S 100 0, 100 2" stroke="url(#line-gradient)" strokeWidth="1.5" fill="none" />
+              <defs>
+                <linearGradient id="line-gradient" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#6366f1" />
+                </linearGradient>
+              </defs>
             </svg>
           </div>
         </div>
@@ -1779,24 +1790,20 @@ export default function App() {
                             <span className={cn("absolute top-1 left-1.5 font-black text-[20px] leading-[21.5px] tracking-tighter z-10", vehicle ? (isOccupiedSelected ? "text-white/20" : (vehicle.entryType === 'monthly' ? "text-emerald-400/30" : "text-blue-400/30")) : "text-slate-400")}>#{slotNum}</span>
                             {vehicle ? (
                                <div className="relative w-full h-full p-2 flex flex-col items-center justify-center">
-                                 <motion.div layoutId={`car-body-${vehicle.id}`} className={cn("absolute inset-x-2.5 inset-y-1.5 rounded-t-[40%] rounded-b-[15%] shadow-md transition-colors duration-500", 
+                                 <motion.div layoutId={`car-body-${vehicle.id}`} className={cn("absolute inset-x-2 inset-y-2 rounded-full shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden", 
                                    isOccupiedSelected 
-                                     ? (vehicle.entryType === 'monthly' ? "bg-emerald-400" : "bg-blue-400") 
-                                     : (vehicle.entryType === 'monthly' ? (isDarkMode ? "bg-emerald-600" : "bg-emerald-500") : (isDarkMode ? "bg-blue-600" : "bg-blue-500"))
+                                     ? "bg-gradient-to-br from-white to-slate-200"
+                                     : (isDarkMode 
+                                         ? (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-400 to-emerald-600" : "bg-gradient-to-br from-blue-400 to-blue-600") 
+                                         : (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-500 to-emerald-700" : "bg-gradient-to-br from-blue-500 to-blue-700"))
                                  )}>
-                                   <div className={cn("absolute top-2.5 left-1 right-1 h-3 rounded-t-lg transition-colors", isDarkMode ? "bg-slate-900/40" : "bg-white/20")} />
-                                   <div className={cn("absolute bottom-2 left-1.5 right-1.5 h-1.5 rounded-sm transition-colors", isDarkMode ? "bg-slate-900/20" : "bg-white/10")} />
-                                   <div className="absolute -left-1 top-3 w-1 h-2 bg-slate-900 rounded-sm" />
-                                   <div className="absolute -right-1 top-3 w-1 h-2 bg-slate-900 rounded-sm" />
-                                   <div className="absolute -left-1 bottom-4 w-1 h-2 bg-slate-900 rounded-sm" />
-                                   <div className="absolute -right-1 bottom-4 w-1 h-2 bg-slate-900 rounded-sm" />
-                                   <div className="absolute top-0 left-1 w-1.5 h-1 bg-amber-200 rounded-full blur-[1px] opacity-80" />
-                                   <div className="absolute top-0 right-1 w-1.5 h-1 bg-amber-200 rounded-full blur-[1px] opacity-80" />
+                                   <StylizedLetterA className={cn("w-full h-full p-1 opacity-80", isOccupiedSelected ? "text-blue-600" : "text-white/20")} />
+                                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
                                  </motion.div>
                                  <div className="relative z-10 flex flex-col items-center">
-                                   <span className={cn("font-black text-[9px] tracking-tight transition-colors", isOccupiedSelected ? "text-white" : "text-white/90")}>{vehicle.plate}</span>
+                                   <span className={cn("font-black text-[10px] tracking-tight transition-colors drop-shadow-sm", isOccupiedSelected ? "text-blue-900" : "text-white")}>{vehicle.plate}</span>
                                    {vehicle.entryType === 'monthly' && (
-                                     <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-1 animate-pulse" title="Abonado" />
+                                     <div className="w-1.5 h-1.5 bg-white rounded-full mt-1 animate-pulse shadow-sm" title="Abonado" />
                                    )}
                                  </div>
                                </div>
@@ -1857,20 +1864,21 @@ export default function App() {
                                  <motion.div 
                                    layoutId={`car-body-${vehicle.id}`}
                                    className={cn(
-                                     "absolute w-3 h-10 rounded-full shadow-md transition-colors duration-500",
+                                     "absolute w-6 h-6 rounded-full shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden",
                                      isOccupiedSelected 
-                                       ? (vehicle.entryType === 'monthly' ? "bg-emerald-400" : "bg-blue-400") 
-                                       : (vehicle.entryType === 'monthly' ? (isDarkMode ? "bg-emerald-600" : "bg-emerald-500") : (isDarkMode ? "bg-blue-600" : "bg-blue-500"))
+                                       ? "bg-gradient-to-br from-white to-slate-200"
+                                       : (isDarkMode 
+                                           ? (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-400 to-emerald-600" : "bg-gradient-to-br from-blue-400 to-blue-600") 
+                                           : (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-500 to-emerald-700" : "bg-gradient-to-br from-blue-500 to-blue-700"))
                                    )}
                                  >
-                                   <div className="absolute top-1 left-1/2 -translate-x-1/2 w-4 h-1.5 bg-slate-900 rounded-sm" />
-                                   <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-1.5 bg-slate-900 rounded-sm" />
-                                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-amber-200 rounded-full blur-[1px]" />
+                                   <StylizedLetterA className={cn("w-full h-full p-1.5 opacity-80", isOccupiedSelected ? "text-blue-600" : "text-white/20")} />
+                                   <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
                                  </motion.div>
-                                 <div className="relative z-10 flex flex-col items-center mt-6">
-                                   <span className={cn("font-black text-[8px] tracking-tight", isOccupiedSelected ? "text-white" : "text-white/90")}>{vehicle.plate}</span>
+                                 <div className="relative z-10 flex flex-col items-center mt-8">
+                                   <span className={cn("font-black text-[9px] tracking-tight drop-shadow-sm", isOccupiedSelected ? "text-blue-900" : "text-white")}>{vehicle.plate}</span>
                                    {vehicle.entryType === 'monthly' && (
-                                     <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-0.5 animate-pulse" title="Abonado" />
+                                     <div className="w-1.5 h-1.5 bg-white rounded-full mt-0.5 animate-pulse shadow-sm" title="Abonado" />
                                    )}
                                  </div>
                                </div>

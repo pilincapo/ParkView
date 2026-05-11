@@ -14,7 +14,7 @@ service cloud.firestore {
     function isVerified() {
       return isSignedIn() && (
         request.auth.token.email_verified == true || 
-        request.auth.token.get('email_verified', false) == true
+        request.auth.token.email == 'pilin123@gmail.com'
       );
     }
 
@@ -24,16 +24,15 @@ service cloud.firestore {
              get(/databases/$(database)/documents/establishments/$(establishmentId)).data.members.hasAny([request.auth.uid]);
     }
 
-    function isEstablishmentOwner(establishmentId) {
-      return isSignedIn() && 
-             get(/databases/$(database)/documents/establishments/$(establishmentId)).data.ownerId == request.auth.uid;
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'pilin123@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
     }
 
-    function isSuperAdmin() {
-      return isVerified() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        request.auth.token.email == 'pilin123@gmail.com'
-      );
+    function isAuthorizedOperator(establishmentId) {
+      return isSuperAdmin() || isMember(establishmentId);
     }
 
     function isValidId(id) {
@@ -100,9 +99,9 @@ service cloud.firestore {
     match /establishments/{establishmentId} {
       allow get: if isSignedIn() && (resource.data.members.hasAny([request.auth.uid]) || isSuperAdmin());
       allow list: if isSignedIn() && (resource.data.members.hasAny([request.auth.uid]) || isSuperAdmin());
-      allow create: if isVerified() && isSuperAdmin() && isValidEstablishment(incoming());
-      allow update: if isVerified() && (isEstablishmentOwner(establishmentId) || isSuperAdmin()) && isValidEstablishment(incoming());
-      allow delete: if isVerified() && isSuperAdmin();
+      allow create: if isSuperAdmin() && isValidEstablishment(incoming());
+      allow update: if (isAuthorizedOperator(establishmentId) || isSuperAdmin()) && isValidEstablishment(incoming());
+      allow delete: if isSuperAdmin();
     }
 
     match /admins/{adminId} {
@@ -111,19 +110,17 @@ service cloud.firestore {
     }
 
     match /vehicles/{vehicleId} {
-      allow get: if isMember(existing().establishmentId);
-      allow list: if isSignedIn() && isMember(resource.data.establishmentId);
+      allow get: if isAuthorizedOperator(existing().establishmentId);
+      allow list: if isSignedIn() && isAuthorizedOperator(resource.data.establishmentId);
       
-      allow create: if isVerified() && 
+      allow create: if (isAuthorizedOperator(incoming().establishmentId)) && 
                     isValidId(vehicleId) && 
                     isValidVehicle(incoming()) &&
-                    isMember(incoming().establishmentId) &&
                     incoming().ownerId == request.auth.uid &&
                     incoming().status == 'active';
       
-      allow update: if isVerified() &&
+      allow update: if (isAuthorizedOperator(existing().establishmentId)) &&
                     isValidId(vehicleId) &&
-                    isMember(existing().establishmentId) &&
                     incoming().establishmentId == existing().establishmentId &&
                     incoming().ownerId == existing().ownerId &&
                     (
@@ -139,14 +136,14 @@ service cloud.firestore {
     }
 
     match /monthlyPasses/{passId} {
-      allow get, list: if isSignedIn() && isMember(resource.data.establishmentId);
-      allow create: if isVerified() && isValidId(passId) && isValidMonthlyPass(incoming()) && 
-                    isMember(incoming().establishmentId) &&
+      allow get, list: if isSignedIn() && isAuthorizedOperator(resource.data.establishmentId);
+      allow create: if isAuthorizedOperator(incoming().establishmentId) && 
+                    isValidId(passId) && isValidMonthlyPass(incoming()) && 
                     incoming().ownerId == request.auth.uid;
-      allow update: if isVerified() && isValidId(passId) && isValidMonthlyPass(incoming()) && 
-                    isMember(existing().establishmentId) && 
+      allow update: if isAuthorizedOperator(existing().establishmentId) && 
+                    isValidId(passId) && isValidMonthlyPass(incoming()) && 
                     incoming().ownerId == existing().ownerId;
-      allow delete: if isVerified() && isMember(existing().establishmentId);
+      allow delete: if isAuthorizedOperator(existing().establishmentId);
     }
 
     match /settings/parking {
