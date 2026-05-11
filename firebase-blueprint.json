@@ -13,6 +13,16 @@
           "type": "string",
           "description": "Identifier of the assigned parking slot."
         },
+        "vehicleType": {
+          "type": "string",
+          "enum": ["car", "motorcycle"],
+          "description": "Type of vehicle."
+        },
+        "entryType": {
+          "type": "string",
+          "enum": ["daily", "monthly"],
+          "description": "Type of entry (daily or monthly pass)."
+        },
         "entryTime": {
           "type": "string",
           "format": "date-time",
@@ -37,7 +47,47 @@
           "description": "UID of the staff member who registered the vehicle."
         }
       },
-      "required": ["plate", "slotId", "entryTime", "status", "ownerId"]
+      "required": ["plate", "slotId", "vehicleType", "entryType", "entryTime", "status", "ownerId"]
+    },
+    "MonthlyPass": {
+      "title": "MonthlyPass",
+      "description": "Represents a monthly parking subscription for a specific license plate.",
+      "type": "object",
+      "properties": {
+        "plate": {
+          "type": "string",
+          "description": "License plate associated with the pass."
+        },
+        "vehicleType": {
+          "type": "string",
+          "enum": ["car", "motorcycle"],
+          "description": "Type of vehicle."
+        },
+        "startDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Subscription start date."
+        },
+        "endDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Subscription end date."
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount paid for the subscription."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "expired"],
+          "description": "Current status of the subscription."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the staff member who created the subscription."
+        }
+      },
+      "required": ["plate", "vehicleType", "startDate", "endDate", "amount", "status", "ownerId"]
     },
     "Setting": {
       "title": "Setting",
@@ -46,11 +96,31 @@
       "properties": {
         "hourlyRate": {
           "type": "number",
-          "description": "Price per hour or fraction of hour."
+          "description": "Price per hour or fraction of hour for cars."
+        },
+        "motoHourlyRate": {
+          "type": "number",
+          "description": "Price per hour or fraction of hour for motorcycles."
+        },
+        "monthlyRate": {
+          "type": "number",
+          "description": "Standard monthly rate for cars."
+        },
+        "motoMonthlyRate": {
+          "type": "number",
+          "description": "Standard monthly rate for motorcycles."
+        },
+        "carSlots": {
+          "type": "number",
+          "description": "Number of slots for cars."
+        },
+        "motoSlots": {
+          "type": "number",
+          "description": "Number of slots for motorcycles."
         },
         "totalSlots": {
           "type": "number",
-          "description": "Total number of available parking spaces."
+          "description": "Total number of slots (legacy)."
         },
         "updatedBy": {
           "type": "string",
@@ -62,13 +132,17 @@
           "description": "Timestamp of last update."
         }
       },
-      "required": ["hourlyRate", "totalSlots", "updatedBy", "updatedAt"]
+      "required": ["hourlyRate", "motoHourlyRate", "carSlots", "motoSlots", "totalSlots", "updatedBy", "updatedAt"]
     }
   },
   "firestore": {
     "/vehicles": {
       "schema": "Vehicle",
       "description": "Collection of all parking sessions."
+    },
+    "/monthlyPasses": {
+      "schema": "MonthlyPass",
+      "description": "Collection of monthly subscriptions."
     },
     "/settings/parking": {
       "schema": "Setting",

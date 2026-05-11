@@ -9,6 +9,8 @@ export interface Vehicle {
   id?: string;
   plate: string;
   slotId: string;
+  vehicleType: 'car' | 'motorcycle';
+  entryType: 'daily' | 'monthly';
   entryTime: Timestamp;
   exitTime: Timestamp | null;
   status: VehicleStatus;
@@ -16,9 +18,25 @@ export interface Vehicle {
   ownerId: string;
 }
 
+export interface MonthlyPass {
+  id?: string;
+  plate: string;
+  vehicleType: 'car' | 'motorcycle';
+  startDate: Timestamp;
+  endDate: Timestamp;
+  ownerId: string;
+  amount: number;
+  status: 'active' | 'expired';
+}
+
 export interface ParkingSettings {
-  hourlyRate: number;
-  totalSlots: number;
+  hourlyRate: number; // legacy default
+  motoHourlyRate: number;
+  monthlyRate: number;
+  motoMonthlyRate: number;
+  carSlots: number;
+  motoSlots: number;
+  totalSlots: number; // legacy total
   updatedBy: string;
   updatedAt: Timestamp;
 }
