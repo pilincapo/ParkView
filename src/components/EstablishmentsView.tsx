@@ -36,7 +36,9 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
     try {
       const defaultSettings = {
         hourlyRate: 1000,
-        motoHourlyRate: 500,
+        carHalfHourRate: 600,
+        motoDailyRate: 500,
+        motoHourlyRate: 500, // legacy
         monthlyRate: 25000,
         motoMonthlyRate: 12000,
         carSlots: 40,

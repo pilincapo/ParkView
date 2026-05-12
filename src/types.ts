@@ -41,8 +41,10 @@ export interface Establishment {
 }
 
 export interface ParkingSettings {
-  hourlyRate: number; // legacy default
-  motoHourlyRate: number;
+  hourlyRate: number; // legacy default (carHourlyRate)
+  carHalfHourRate: number;
+  motoDailyRate: number;
+  motoHourlyRate: number; // legacy
   monthlyRate: number;
   motoMonthlyRate: number;
   carSlots: number;

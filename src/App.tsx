@@ -35,7 +35,6 @@ import {
   CheckCircle2,
   XCircle,
   Activity,
-  Bike,
   Sun,
   Moon,
   ChevronDown,
@@ -50,7 +49,7 @@ import { cn, formatCurrency } from './lib/utils';
 import { Establishment, Vehicle, VehicleStatus, ParkingSettings, OperationType } from './types';
 import { handleFirestoreError } from './lib/error-handler';
 import { EstablishmentsView } from './components/EstablishmentsView';
-import { ParkingIcon } from './components/Icons';
+import { ParkingIcon, MotorcycleIcon } from './components/Icons';
 
 // Super admin email - user can manage all establishments
 const SUPER_ADMIN_EMAIL = 'pilin123@gmail.com';
@@ -81,7 +80,7 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allHistoricalPlates, setAllHistoricalPlates] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [duplicateVehicleAlert, setDuplicateVehicleAlert] = useState<{ plate: string; type: 'active' | 'monthly' | 'occupied' } | null>(null);
+  const [duplicateVehicleAlert, setDuplicateVehicleAlert] = useState<{ plate: string; type: 'active' | 'monthly' } | null>(null);
   const [confirmingExitVehicle, setConfirmingExitVehicle] = useState<Vehicle | null>(null);
   const [editableAmount, setEditableAmount] = useState<number>(0);
   const [historySearchTerm, setHistorySearchTerm] = useState('');
@@ -127,25 +126,8 @@ export default function App() {
 
   const handleSlotClick = (slotId: string, vehicle?: Vehicle) => {
     if (vehicle) {
-      setHistorySearchTerm(vehicle.plate);
-      setActiveView('history');
-      if (confirmingExitId === vehicle.id) {
-        setConfirmingExitId(null);
-      } else {
-        setConfirmingExitId(vehicle.id || null);
-        setSelectedSlot('');
-        
-        // On mobile, switch to activity view
-        if (window.innerWidth < 768) {
-          setActiveView('activity');
-        }
-
-        // Scroll sidebar item into view
-        setTimeout(() => {
-          const el = document.getElementById(`active-${vehicle.id}`);
-          el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 100);
-      }
+      setEditableAmount(calculateAmount(vehicle));
+      setConfirmingExitVehicle(vehicle);
     } else {
       setSelectedSlot(slotId);
       setConfirmingExitId(null);
@@ -350,8 +332,10 @@ export default function App() {
     if (!user || !plate.trim() || !selectedSlot || !selectedEstId) return;
 
     // Check if slot is already occupied
-    if (activeVehicles.some(v => v.slotId === selectedSlot)) {
-      setDuplicateVehicleAlert({ plate: '', type: 'occupied' });
+    const occupiedVehicle = activeVehicles.find(v => v.slotId === selectedSlot);
+    if (occupiedVehicle) {
+      setEditableAmount(calculateAmount(occupiedVehicle));
+      setConfirmingExitVehicle(occupiedVehicle);
       return;
     }
 
@@ -429,12 +413,39 @@ export default function App() {
   const calculateAmount = (v: Vehicle) => {
     if (!settings || !v.entryTime) return 0;
     if (v.entryType === 'monthly') return 0;
+    
     const now = new Date();
     const entry = v.entryTime.toDate();
     const diffMs = now.getTime() - entry.getTime();
-    const diffHours = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60)));
-    const rate = v.vehicleType === 'motorcycle' ? (settings.motoHourlyRate || 500) : settings.hourlyRate;
-    return diffHours * rate;
+    const diffMinutes = Math.max(1, Math.ceil(diffMs / (1000 * 60)));
+
+    if (v.vehicleType === 'motorcycle') {
+      return settings.motoDailyRate || 500;
+    }
+
+    const hourlyRate = settings.hourlyRate || 1000;
+    const halfHourRate = settings.carHalfHourRate || Math.ceil(hourlyRate / 2);
+    
+    // Primera hora siempre completa
+    if (diffMinutes <= 60) {
+      return hourlyRate;
+    }
+
+    // Más de una hora: primera hora + excedente
+    let total = hourlyRate; 
+    const extraMinutes = diffMinutes - 60;
+    const extraFullHours = Math.floor(extraMinutes / 60);
+    const remainingExtraMinutes = extraMinutes % 60;
+    
+    total += extraFullHours * hourlyRate;
+    
+    if (remainingExtraMinutes > 30) {
+      total += hourlyRate;
+    } else if (remainingExtraMinutes > 0) {
+      total += halfHourRate;
+    }
+    
+    return total;
   };
 
   const handleExit = async (vehicle: Vehicle) => {
@@ -466,12 +477,22 @@ export default function App() {
     }
   };
 
-  const updateSettings = async (carRate: number, motoRate: number, carSlots: number, motoSlots: number, monthlyRate: number, motoMonthlyRate: number) => {
+  const updateSettings = async (
+    carRate: number, 
+    carHalfHourRate: number,
+    motoDailyRate: number, 
+    carSlots: number, 
+    motoSlots: number, 
+    monthlyRate: number, 
+    motoMonthlyRate: number
+  ) => {
     if (!user || !selectedEstId || !currentEst) return;
     try {
       const newSettings = {
         hourlyRate: carRate,
-        motoHourlyRate: motoRate,
+        carHalfHourRate,
+        motoDailyRate,
+        motoHourlyRate: motoDailyRate, // keep for compat
         monthlyRate,
         motoMonthlyRate,
         carSlots: carSlots,
@@ -792,7 +813,7 @@ export default function App() {
                         : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
                     )}
                   >
-                    <Activity className="w-4 h-4 rotate-45" />
+                    <MotorcycleIcon className="w-4 h-4" />
                     Moto
                   </button>
                 </div>
@@ -1078,7 +1099,7 @@ export default function App() {
                                 )}>
                                   {v.slotId}
                                 </span>
-                                {v.vehicleType === 'motorcycle' ? <Bike className={cn("w-4 h-4 text-indigo-400", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} /> : <Car className={cn("w-4 h-4 text-indigo-400", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} />}
+                                {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className={cn("w-4 h-4 text-indigo-400", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} /> : <Car className={cn("w-4 h-4 text-indigo-400", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} />}
                                 <p className={cn("font-bold text-lg tracking-wider", isConfirming ? "text-white" : (isDarkMode ? (isMonthly ? "text-emerald-400" : "text-blue-400") : (isMonthly ? "text-emerald-600" : "text-blue-600")))}>{v.plate}</p>
                                 {isMonthly && (
                                   <span className={cn("text-[8px] border px-1.5 py-0.5 rounded font-black uppercase tracking-widest leading-none", isConfirming ? "bg-white/20 border-white/30 text-white" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30")}>Abono</span>
@@ -1123,7 +1144,7 @@ export default function App() {
                     <div className="p-20 text-center opacity-20">
                       <div className="flex justify-center gap-4 mb-4">
                         <Car className="w-12 h-12" />
-                        <Activity className="w-12 h-12 rotate-45" />
+                        <MotorcycleIcon className="w-12 h-12" />
                       </div>
                       <p className="font-black uppercase tracking-widest text-xs">Sin actividad</p>
                     </div>
@@ -1183,7 +1204,7 @@ export default function App() {
                                 : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
                             )}
                           >
-                            <Activity className="w-6 h-6 rotate-45" />
+                            <MotorcycleIcon className="w-6 h-6" />
                             <span className="text-[10px] font-black uppercase tracking-widest">Moto</span>
                           </button>
                         </div>
@@ -1252,7 +1273,7 @@ export default function App() {
                                       "w-8 h-8 rounded-lg flex items-center justify-center",
                                       plate === pass.plate ? "bg-emerald-500/20" : (isDarkMode ? "bg-slate-900" : "bg-white")
                                     )}>
-                                      {pass.vehicleType === 'motorcycle' ? <Bike className="w-4 h-4" /> : <Car className="w-4 h-4" />}
+                                      {pass.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-4 h-4" /> : <Car className="w-4 h-4" />}
                                     </div>
                                     <div className="text-left">
                                       <span className="font-mono font-black block leading-none">{pass.plate}</span>
@@ -1438,7 +1459,7 @@ export default function App() {
                                        "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-500",
                                        isDarkMode ? "bg-slate-800 text-emerald-400 group-hover:bg-emerald-900/30" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100"
                                      )}>
-                                        {pass.vehicleType === 'motorcycle' ? <Bike className="w-6 h-6" /> : <Car className="w-6 h-6" />}
+                                        {pass.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-6 h-6" /> : <Car className="w-6 h-6" />}
                                      </div>
                                      <div className="text-left">
                                         <h4 className="font-black text-lg tracking-wider bg-gradient-to-r from-emerald-500 to-emerald-400 bg-clip-text text-transparent">{pass.plate}</h4>
@@ -1492,7 +1513,8 @@ export default function App() {
                       const formData = new FormData(e.currentTarget);
                       updateSettings(
                         Number(formData.get('carRate')), 
-                        Number(formData.get('motoRate')),
+                        Number(formData.get('carHalfHourRate')), 
+                        Number(formData.get('motoDailyRate')),
                         Number(formData.get('carSlots')),
                         Number(formData.get('motoSlots')),
                         Number(formData.get('monthlyRate')),
@@ -1501,7 +1523,7 @@ export default function App() {
                     }} className="space-y-6">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Tarifa Autos</h3>
+                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Tarifa Auto (Hora)</h3>
                           <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-indigo-400">$</span>
                             <input 
@@ -1516,13 +1538,31 @@ export default function App() {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Tarifa Motos</h3>
+                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Tarifa Auto (1/2 Hora)</h3>
                           <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-indigo-400">$</span>
                             <input 
-                              name="motoRate"
+                              name="carHalfHourRate"
                               type="number"
-                              defaultValue={settings?.motoHourlyRate}
+                              defaultValue={settings?.carHalfHourRate || Math.ceil((settings?.hourlyRate || 1000) / 2)}
+                              className={cn(
+                                "w-full pl-10 pr-4 py-4 border rounded-2xl font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                              )}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-2">
+                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Tarifa Diaria Moto</h3>
+                          <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-indigo-400">$</span>
+                            <input 
+                              name="motoDailyRate"
+                              type="number"
+                              defaultValue={settings?.motoDailyRate || settings?.motoHourlyRate}
                               className={cn(
                                 "w-full pl-10 pr-4 py-4 border rounded-2xl font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
                                 isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
@@ -1803,7 +1843,7 @@ export default function App() {
                                   ? (isMonthly ? "bg-emerald-900/20 text-emerald-400" : "bg-blue-900/20 text-blue-400") 
                                   : (isMonthly ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600")
                               )}>
-                                {v.vehicleType === 'motorcycle' ? <Bike className="w-6 h-6" /> : <Car className="w-6 h-6" />}
+                                {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-6 h-6" /> : <Car className="w-6 h-6" />}
                               </div>
                               <div>
                                 <div className="flex items-center gap-2 mb-1">
@@ -1851,7 +1891,7 @@ export default function App() {
                 >
                   <section>
                     <div className="flex items-center gap-3 mb-6 relative">
-                       <Car className="w-5 h-5 text-blue-500" />
+                       <Car className="w-[26px] h-[26px] text-blue-500" />
                        <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">Cocheras de Autos</h3>
                        <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
                        <svg className="absolute -bottom-1 left-0 w-8 h-px text-blue-500/50" viewBox="0 0 40 1">
@@ -1924,7 +1964,7 @@ export default function App() {
 
                   <section>
                     <div className="flex items-center gap-3 mb-6 relative">
-                       <Activity className="w-5 h-5 text-blue-500 rotate-45" />
+                       <MotorcycleIcon className="w-[26px] h-[26px] text-blue-500" />
                        <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">Cocheras de Motos</h3>
                        <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
                        <svg className="absolute -bottom-1 left-0 w-8 h-px text-blue-500/50" viewBox="0 0 40 1">
@@ -1978,7 +2018,7 @@ export default function App() {
                                  >
                                    <ParkingIcon className={cn("w-full h-full p-3 opacity-80", isOccupiedSelected ? "text-indigo-600" : "text-white/20")} />
                                    <div className="absolute top-0.5 right-1 opacity-40">
-                                      <Bike className="w-2.5 h-2.5 text-white" />
+                                      <MotorcycleIcon className="w-2.5 h-2.5 text-white" />
                                    </div>
                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
                                  </motion.div>
@@ -2018,7 +2058,7 @@ export default function App() {
             <AnimatePresence initial={false}>
               {activeVehicles.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center opacity-20 gap-4">
-                   <Activity className="w-12 h-12" />
+                   <Clock className="w-12 h-12" />
                    <p className="text-[10px] font-black uppercase tracking-widest text-center">Sin vehículos<br/>activos</p>
                 </div>
               ) : (
@@ -2049,7 +2089,7 @@ export default function App() {
                              )}>
                                {v.slotId}
                              </span>
-                             {v.vehicleType === 'motorcycle' ? <Bike className={cn("w-4 h-4", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} /> : <Car className={cn("w-4 h-4", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} />}
+                             {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className={cn("w-4 h-4", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} /> : <Car className={cn("w-4 h-4", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} />}
                              <p className={cn("font-bold text-lg tracking-wider", isConfirming ? "text-white" : (isDarkMode ? (isMonthly ? "text-emerald-400" : "text-blue-400") : (isMonthly ? "text-emerald-600" : "text-blue-600")))}>{v.plate}</p>
                           </div>
                           <p className={cn("text-[10px] font-bold uppercase mt-1", isConfirming ? "text-white/60" : "text-slate-400")}>Ingreso: {v.entryTime ? format(v.entryTime.toDate(), 'HH:mm') : '--:--'}</p>
@@ -2116,7 +2156,6 @@ export default function App() {
               <div className="flex-1">
                 <h4 className="font-black text-rose-500 text-sm uppercase tracking-wider mb-0.5">¡Atención!</h4>
                 <p className="text-xs font-bold text-slate-400 leading-tight">
-                  {duplicateVehicleAlert.type === 'occupied' && "La cochera seleccionada ya está ocupada."}
                   {duplicateVehicleAlert.type === 'active' && `El vehículo ${duplicateVehicleAlert.plate} ya tiene una estadía activa.`}
                   {duplicateVehicleAlert.type === 'monthly' && `El vehículo ${duplicateVehicleAlert.plate} ya tiene un abono activo.`}
                 </p>
@@ -2190,6 +2229,31 @@ export default function App() {
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase text-right opacity-60">Calculado: {formatCurrency(calculateAmount(confirmingExitVehicle))}</p>
+                  
+                  <div className="pt-2 mt-2 border-t border-dashed border-slate-200 dark:border-slate-700 space-y-2">
+                    <div className="flex justify-between text-[10px] uppercase tracking-tighter">
+                      <span className="text-slate-400 font-bold">Ingreso:</span>
+                      <span className="text-slate-500 font-black">{confirmingExitVehicle.entryTime ? format(confirmingExitVehicle.entryTime.toDate(), 'HH:mm') : '--:--'}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] uppercase tracking-tighter">
+                      <span className="text-slate-400 font-bold">Salida (Ahora):</span>
+                      <span className="text-slate-500 font-black">{format(new Date(), 'HH:mm')}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] uppercase tracking-tighter">
+                      <span className="text-slate-400 font-bold">Tiempo Total:</span>
+                      <span className="text-[#36cc10] font-black text-[15px] leading-[16px] border border-solid border-[#36cc10]/30 px-2 py-0.5 rounded-lg bg-[#36cc10]/5">
+                        {(() => {
+                          const now = new Date();
+                          const entry = confirmingExitVehicle.entryTime?.toDate();
+                          if (!entry) return '--';
+                          const diffMs = now.getTime() - entry.getTime();
+                          const diffHrs = Math.floor(diffMs / 3600000);
+                          const diffMins = Math.floor((diffMs % 3600000) / 60000);
+                          return `${diffHrs}h ${diffMins}m`;
+                        })()}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex flex-col w-full gap-3">
