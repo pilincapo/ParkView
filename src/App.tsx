@@ -35,11 +35,13 @@ import {
   CheckCircle2,
   XCircle,
   Activity,
+  Bike,
   Sun,
   Moon,
   ChevronDown,
   Building2,
-  Users
+  Users,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -48,7 +50,7 @@ import { cn, formatCurrency } from './lib/utils';
 import { Establishment, Vehicle, VehicleStatus, ParkingSettings, OperationType } from './types';
 import { handleFirestoreError } from './lib/error-handler';
 import { EstablishmentsView } from './components/EstablishmentsView';
-import { StylizedLetterA } from './components/Icons';
+import { ParkingIcon } from './components/Icons';
 
 // Super admin email - user can manage all establishments
 const SUPER_ADMIN_EMAIL = 'pilin123@gmail.com';
@@ -77,6 +79,9 @@ export default function App() {
   const [selectedVehicleType, setSelectedVehicleType] = useState<'car' | 'motorcycle'>('car');
   const [selectedEntryType, setSelectedEntryType] = useState<'daily' | 'monthly'>('daily');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [allHistoricalPlates, setAllHistoricalPlates] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [duplicateVehicleAlert, setDuplicateVehicleAlert] = useState<{ plate: string; type: 'active' | 'monthly' | 'occupied' } | null>(null);
   const [confirmingExitVehicle, setConfirmingExitVehicle] = useState<Vehicle | null>(null);
   const [editableAmount, setEditableAmount] = useState<number>(0);
   const [historySearchTerm, setHistorySearchTerm] = useState('');
@@ -310,19 +315,49 @@ export default function App() {
     return () => unsubscribe();
   }, [user, selectedEstId]);
 
+  // Fetch historical plates for autocomplete
+  useEffect(() => {
+    if (!user || !selectedEstId) return;
+
+    // Fetch the last 200 vehicles to build a suggestion list
+    const q = query(
+      collection(db, 'vehicles'),
+      where('establishmentId', '==', selectedEstId),
+      orderBy('entryTime', 'desc'),
+      limit(200)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const plates = new Set<string>();
+      // Use existing history and current fetch
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.plate) plates.add(data.plate);
+      });
+      // Add monthly passes to the set
+      monthlyPasses.forEach(p => plates.add(p.plate));
+      
+      setAllHistoricalPlates(Array.from(plates).sort());
+    }, (error) => {
+      console.warn("Autocomplete fetch failed:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user, selectedEstId, monthlyPasses]);
+
   const handleEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !plate.trim() || !selectedSlot || !selectedEstId) return;
 
     // Check if slot is already occupied
     if (activeVehicles.some(v => v.slotId === selectedSlot)) {
-      alert("La cochera seleccionada ya está ocupada.");
+      setDuplicateVehicleAlert({ plate: '', type: 'occupied' });
       return;
     }
 
     // Check if vehicle plate is already registered and active
     if (activeVehicles.some(v => v.plate === plate.toUpperCase())) {
-      alert(`Ojo, el vehículo con patente ${plate.toUpperCase()} ya tiene una estadía activa en el sistema.`);
+      setDuplicateVehicleAlert({ plate: plate.toUpperCase(), type: 'active' });
       return;
     }
 
@@ -365,7 +400,7 @@ export default function App() {
 
     // Check if vehicle already has an active monthly pass
     if (monthlyPasses.some(p => p.plate === plateVal)) {
-      alert(`Este vehículo (${plateVal}) ya cuenta con un abono mensual activo.`);
+      setDuplicateVehicleAlert({ plate: plateVal, type: 'monthly' });
       return;
     }
 
@@ -459,7 +494,7 @@ export default function App() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,#EEF2FF_0%,transparent_50%)]" />
       <div className="flex flex-col items-center gap-6 relative z-10">
         <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-700 rounded-[2rem] flex items-center justify-center shadow-[0_20px_50px_rgba(59,130,246,0.3)] animate-pulse">
-          <StylizedLetterA className="text-white w-10 h-10" />
+          <ParkingIcon className="text-white w-10 h-10" />
         </div>
         <div className="flex flex-col items-center gap-2">
           <p className="text-slate-900 font-black tracking-[0.4em] text-[12px] uppercase">CocheraFlow AR</p>
@@ -485,7 +520,7 @@ export default function App() {
       >
         <div className="flex items-center gap-3 mb-8">
           <div className="w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-200/50">
-            <StylizedLetterA className="w-8 h-8" />
+            <ParkingIcon className="w-8 h-8" />
           </div>
           <div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">CocheraFlow</h1>
@@ -569,7 +604,7 @@ export default function App() {
       )}>
         <div className="flex items-center gap-2 md:gap-4">
           <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center text-white cursor-pointer shadow-[0_8px_20px_rgba(37,99,235,0.3)]" onClick={() => setActiveView('monitor')}>
-            <StylizedLetterA className="w-6 h-6 md:w-7 md:h-7" />
+            <ParkingIcon className="w-6 h-6 md:w-7 md:h-7" />
           </div>
           <div className="relative group">
             <h1 className={cn(
@@ -624,7 +659,7 @@ export default function App() {
 
           <div className="flex items-center gap-1 md:gap-2">
             {/* Establishment Selector */}
-            {establishments.length > 0 && (
+            {(isSuperAdmin && establishments.length > 0) && (
               <div className="relative group mr-2">
                 <select
                   value={selectedEstId || ''}
@@ -816,19 +851,52 @@ export default function App() {
                   )}
                 </div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 relative">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Patente</label>
-                <input 
-                  ref={plateInputRef}
-                  type="text" 
-                  value={plate}
-                  onChange={(e) => setPlate(e.target.value.toUpperCase())}
-                  placeholder="PLATE-ID" 
-                  className={cn(
-                    "w-full px-5 py-4 border-2 rounded-2xl font-mono text-2xl font-black text-center focus:outline-none focus:border-indigo-500 transition-all uppercase",
-                    isDarkMode ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-800" : "bg-white border-slate-100"
+                <div className="relative">
+                  <input 
+                    ref={plateInputRef}
+                    type="text" 
+                    value={plate}
+                    onChange={(e) => {
+                      setPlate(e.target.value.toUpperCase());
+                      setShowSuggestions(true);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    placeholder="PLATE-ID" 
+                    className={cn(
+                      "w-full px-5 py-4 border-2 rounded-2xl font-mono text-2xl font-black text-center focus:outline-none focus:border-indigo-500 transition-all uppercase",
+                      isDarkMode ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-800" : "bg-white border-slate-100"
+                    )}
+                  />
+                  {showSuggestions && plate.length >= 2 && (
+                    <div className={cn(
+                      "absolute left-0 right-0 top-full mt-1 z-[100] rounded-xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2",
+                      isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
+                    )}>
+                      {allHistoricalPlates
+                        .filter(p => p.toUpperCase().includes(plate.toUpperCase()) && p.toUpperCase() !== plate.toUpperCase())
+                        .slice(0, 5)
+                        .map(s => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => {
+                              setPlate(s);
+                              setShowSuggestions(false);
+                            }}
+                            className={cn(
+                              "w-full px-4 py-3 text-left font-mono font-black text-lg border-b last:border-b-0 transition-colors uppercase",
+                              isDarkMode ? "border-slate-700 hover:bg-slate-700 text-white" : "border-slate-50 hover:bg-slate-50 text-slate-900"
+                            )}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                    </div>
                   )}
-                />
+                </div>
               </div>
               <button 
                 disabled={isSubmitting || !plate.trim() || !selectedSlot}
@@ -1010,7 +1078,7 @@ export default function App() {
                                 )}>
                                   {v.slotId}
                                 </span>
-                                {v.vehicleType === 'motorcycle' ? <Activity className={cn("w-4 h-4 rotate-45", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} /> : <Car className={cn("w-4 h-4 text-indigo-400", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} />}
+                                {v.vehicleType === 'motorcycle' ? <Bike className={cn("w-4 h-4 text-indigo-400", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} /> : <Car className={cn("w-4 h-4 text-indigo-400", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} />}
                                 <p className={cn("font-bold text-lg tracking-wider", isConfirming ? "text-white" : (isDarkMode ? (isMonthly ? "text-emerald-400" : "text-blue-400") : (isMonthly ? "text-emerald-600" : "text-blue-600")))}>{v.plate}</p>
                                 {isMonthly && (
                                   <span className={cn("text-[8px] border px-1.5 py-0.5 rounded font-black uppercase tracking-widest leading-none", isConfirming ? "bg-white/20 border-white/30 text-white" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30")}>Abono</span>
@@ -1184,7 +1252,7 @@ export default function App() {
                                       "w-8 h-8 rounded-lg flex items-center justify-center",
                                       plate === pass.plate ? "bg-emerald-500/20" : (isDarkMode ? "bg-slate-900" : "bg-white")
                                     )}>
-                                      {pass.vehicleType === 'motorcycle' ? <Activity className="w-4 h-4 rotate-45" /> : <Car className="w-4 h-4" />}
+                                      {pass.vehicleType === 'motorcycle' ? <Bike className="w-4 h-4" /> : <Car className="w-4 h-4" />}
                                     </div>
                                     <div className="text-left">
                                       <span className="font-mono font-black block leading-none">{pass.plate}</span>
@@ -1215,21 +1283,54 @@ export default function App() {
                         </div>
                       </div>
                       
-                      <div className="space-y-2">
+                      <div className="space-y-2 relative">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Patente del Vehículo</label>
-                        <input 
-                          ref={plateInputRef}
-                          type="text" 
-                          value={plate}
-                          onChange={(e) => setPlate(e.target.value.toUpperCase())}
-                          placeholder="PATENTE" 
-                          className={cn(
-                            "w-full px-6 py-5 border rounded-3xl font-mono text-3xl font-black text-center focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all uppercase",
-                            isDarkMode 
-                              ? "bg-slate-800 border-slate-700 text-white placeholder:text-slate-700" 
-                              : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-100"
+                        <div className="relative">
+                          <input 
+                            ref={plateInputRef}
+                            type="text" 
+                            value={plate}
+                            onChange={(e) => {
+                              setPlate(e.target.value.toUpperCase());
+                              setShowSuggestions(true);
+                            }}
+                            onFocus={() => setShowSuggestions(true)}
+                            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                            placeholder="PATENTE" 
+                            className={cn(
+                              "w-full px-6 py-5 border rounded-3xl font-mono text-3xl font-black text-center focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all uppercase",
+                              isDarkMode 
+                                ? "bg-slate-800 border-slate-700 text-white placeholder:text-slate-700" 
+                                : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-100"
+                            )}
+                          />
+                          {showSuggestions && plate.length >= 2 && (
+                            <div className={cn(
+                              "absolute left-0 right-0 top-full mt-1 z-[100] rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2",
+                              isDarkMode ? "bg-slate-700 border-slate-600" : "bg-white border-slate-200"
+                            )}>
+                              {allHistoricalPlates
+                                .filter(p => p.toUpperCase().includes(plate.toUpperCase()) && p.toUpperCase() !== plate.toUpperCase())
+                                .slice(0, 5)
+                                .map(s => (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => {
+                                      setPlate(s);
+                                      setShowSuggestions(false);
+                                    }}
+                                    className={cn(
+                                      "w-full px-6 py-4 text-left font-mono font-black text-xl border-b last:border-b-0 transition-colors uppercase",
+                                      isDarkMode ? "border-slate-600 hover:bg-slate-600 text-white" : "border-slate-50 hover:bg-slate-50 text-slate-900"
+                                    )}
+                                  >
+                                    {s}
+                                  </button>
+                                ))}
+                            </div>
                           )}
-                        />
+                        </div>
                       </div>
 
                       <button 
@@ -1337,7 +1438,7 @@ export default function App() {
                                        "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-500",
                                        isDarkMode ? "bg-slate-800 text-emerald-400 group-hover:bg-emerald-900/30" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100"
                                      )}>
-                                        {pass.vehicleType === 'motorcycle' ? <Activity className="w-6 h-6 rotate-45" /> : <Car className="w-6 h-6" />}
+                                        {pass.vehicleType === 'motorcycle' ? <Bike className="w-6 h-6" /> : <Car className="w-6 h-6" />}
                                      </div>
                                      <div className="text-left">
                                         <h4 className="font-black text-lg tracking-wider bg-gradient-to-r from-emerald-500 to-emerald-400 bg-clip-text text-transparent">{pass.plate}</h4>
@@ -1702,7 +1803,7 @@ export default function App() {
                                   ? (isMonthly ? "bg-emerald-900/20 text-emerald-400" : "bg-blue-900/20 text-blue-400") 
                                   : (isMonthly ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600")
                               )}>
-                                {v.vehicleType === 'motorcycle' ? <Activity className="w-6 h-6 rotate-45" /> : <Car className="w-6 h-6" />}
+                                {v.vehicleType === 'motorcycle' ? <Bike className="w-6 h-6" /> : <Car className="w-6 h-6" />}
                               </div>
                               <div>
                                 <div className="flex items-center gap-2 mb-1">
@@ -1790,14 +1891,17 @@ export default function App() {
                             <span className={cn("absolute top-1 left-1.5 font-black text-[20px] leading-[21.5px] tracking-tighter z-10", vehicle ? (isOccupiedSelected ? "text-white/20" : (vehicle.entryType === 'monthly' ? "text-emerald-400/30" : "text-blue-400/30")) : "text-slate-400")}>#{slotNum}</span>
                             {vehicle ? (
                                <div className="relative w-full h-full p-2 flex flex-col items-center justify-center">
-                                 <motion.div layoutId={`car-body-${vehicle.id}`} className={cn("absolute inset-x-2 inset-y-2 rounded-full shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden", 
+                                 <motion.div layoutId={`car-body-${vehicle.id}`} className={cn("absolute inset-x-2 inset-y-2 rounded-xl shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden", 
                                    isOccupiedSelected 
                                      ? "bg-gradient-to-br from-white to-slate-200"
                                      : (isDarkMode 
                                          ? (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-400 to-emerald-600" : "bg-gradient-to-br from-blue-400 to-blue-600") 
                                          : (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-500 to-emerald-700" : "bg-gradient-to-br from-blue-500 to-blue-700"))
                                  )}>
-                                   <StylizedLetterA className={cn("w-full h-full p-1 opacity-80", isOccupiedSelected ? "text-blue-600" : "text-white/20")} />
+                                   <ParkingIcon className={cn("w-full h-full p-2.5 opacity-80", isOccupiedSelected ? "text-blue-600" : "text-white/20")} />
+                                   <div className="absolute top-1 right-1 opacity-40">
+                                      <Car className="w-2.5 h-2.5 text-white" />
+                                   </div>
                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
                                  </motion.div>
                                  <div className="relative z-10 flex flex-col items-center">
@@ -1864,15 +1968,18 @@ export default function App() {
                                  <motion.div 
                                    layoutId={`car-body-${vehicle.id}`}
                                    className={cn(
-                                     "absolute w-6 h-6 rounded-full shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden",
+                                     "absolute w-8 h-5 rounded-full shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden",
                                      isOccupiedSelected 
                                        ? "bg-gradient-to-br from-white to-slate-200"
                                        : (isDarkMode 
-                                           ? (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-400 to-emerald-600" : "bg-gradient-to-br from-blue-400 to-blue-600") 
-                                           : (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-500 to-emerald-700" : "bg-gradient-to-br from-blue-500 to-blue-700"))
+                                           ? (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-violet-400 to-violet-600" : "bg-gradient-to-br from-indigo-400 to-indigo-600") 
+                                           : (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-violet-500 to-violet-700" : "bg-gradient-to-br from-indigo-500 to-indigo-700"))
                                    )}
                                  >
-                                   <StylizedLetterA className={cn("w-full h-full p-1.5 opacity-80", isOccupiedSelected ? "text-blue-600" : "text-white/20")} />
+                                   <ParkingIcon className={cn("w-full h-full p-3 opacity-80", isOccupiedSelected ? "text-indigo-600" : "text-white/20")} />
+                                   <div className="absolute top-0.5 right-1 opacity-40">
+                                      <Bike className="w-2.5 h-2.5 text-white" />
+                                   </div>
                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
                                  </motion.div>
                                  <div className="relative z-10 flex flex-col items-center mt-8">
@@ -1942,7 +2049,7 @@ export default function App() {
                              )}>
                                {v.slotId}
                              </span>
-                             {v.vehicleType === 'motorcycle' ? <Activity className={cn("w-4 h-4 rotate-45", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} /> : <Car className={cn("w-4 h-4", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} />}
+                             {v.vehicleType === 'motorcycle' ? <Bike className={cn("w-4 h-4", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} /> : <Car className={cn("w-4 h-4", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} />}
                              <p className={cn("font-bold text-lg tracking-wider", isConfirming ? "text-white" : (isDarkMode ? (isMonthly ? "text-emerald-400" : "text-blue-400") : (isMonthly ? "text-emerald-600" : "text-blue-600")))}>{v.plate}</p>
                           </div>
                           <p className={cn("text-[10px] font-bold uppercase mt-1", isConfirming ? "text-white/60" : "text-slate-400")}>Ingreso: {v.entryTime ? format(v.entryTime.toDate(), 'HH:mm') : '--:--'}</p>
@@ -1989,6 +2096,41 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      <AnimatePresence>
+        {duplicateVehicleAlert && (
+          <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[200] w-full max-w-sm px-4">
+            <motion.div 
+              initial={{ opacity: 0, y: -50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.9 }}
+              className={cn(
+                "w-full rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] p-6 border-2 flex items-center gap-4 relative overflow-hidden",
+                isDarkMode ? "bg-slate-900 border-rose-500/30 text-white" : "bg-white border-rose-500/20 text-slate-900"
+              )}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent pointer-events-none" />
+              <div className="w-12 h-12 bg-rose-500/10 rounded-2xl flex items-center justify-center text-rose-500 shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-black text-rose-500 text-sm uppercase tracking-wider mb-0.5">¡Atención!</h4>
+                <p className="text-xs font-bold text-slate-400 leading-tight">
+                  {duplicateVehicleAlert.type === 'occupied' && "La cochera seleccionada ya está ocupada."}
+                  {duplicateVehicleAlert.type === 'active' && `El vehículo ${duplicateVehicleAlert.plate} ya tiene una estadía activa.`}
+                  {duplicateVehicleAlert.type === 'monthly' && `El vehículo ${duplicateVehicleAlert.plate} ya tiene un abono activo.`}
+                </p>
+              </div>
+              <button 
+                onClick={() => setDuplicateVehicleAlert(null)}
+                className="w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors shrink-0"
+              >
+                <XCircle className="w-5 h-5 text-slate-400" />
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Confirmation Modal */}
       <AnimatePresence>
