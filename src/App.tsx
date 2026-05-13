@@ -41,6 +41,7 @@ import {
   Building2,
   Users,
   AlertCircle,
+  AlertTriangle,
   Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -87,6 +88,8 @@ export default function App() {
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [monthlyPasses, setMonthlyPasses] = useState<any[]>([]);
   const [selectedHistoryVehicle, setSelectedHistoryVehicle] = useState<Vehicle | null>(null);
+  const [historyVehicleToDelete, setHistoryVehicleToDelete] = useState<Vehicle | null>(null);
+  const [isDeletingHistory, setIsDeletingHistory] = useState(false);
   const plateInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-detect monthly pass when typing plate
@@ -478,19 +481,21 @@ export default function App() {
     }
   };
 
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-
   const handleDeleteHistory = async (id: string) => {
+    if (isDeletingHistory) return;
+    setIsDeletingHistory(true);
     console.log('Solicitando eliminar registro history:', id);
     try {
       // Optimistic locally
       setHistory(prev => prev.filter(v => v.id !== id));
-      await deleteDoc(doc(db, 'vehicles', id));
+      await deleteDoc(doc(db, 'history', id));
       console.log('Registro eliminado exitosamente:', id);
-      setConfirmDeleteId(null);
+      setHistoryVehicleToDelete(null);
     } catch (error) {
       console.error('Error al eliminar registro:', error);
-      handleFirestoreError(error, OperationType.DELETE, `vehicles/${id}`);
+      handleFirestoreError(error, OperationType.DELETE, `history/${id}`);
+    } finally {
+      setIsDeletingHistory(false);
     }
   };
 
@@ -836,7 +841,7 @@ export default function App() {
                 {activeView === 'monitor' ? 'SISTEMA DE CONTROL' : 'ADMINISTRACIÓN'}
               </p>
               <h2 className={cn("font-black text-xl md:text-2xl tracking-tight transition-colors duration-500 flex items-center gap-2 relative", isDarkMode ? "text-white" : "text-slate-900")}>
-                {activeView === 'monitor' ? <><Building2 className="w-6 h-6 text-indigo-500" /> Mapa de Cocheras</> : 
+                {activeView === 'monitor' ? <><Building2 className="w-6 h-6 text-indigo-500" /> Cocheras</> : 
                  activeView === 'activity' ? <><Activity className="w-6 h-6 text-indigo-500" /> Sesiones Activas</> :
                  activeView === 'history' ? <><HistoryIcon className="w-6 h-6 text-indigo-500" /> Historial</> : 
                  activeView === 'reports' ? <><Search className="w-6 h-6 text-indigo-500" /> Analítica</> : <><SettingsIcon className="w-6 h-6 text-indigo-500" /> Ajustes</>}
@@ -1553,26 +1558,15 @@ export default function App() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (!v.id) return;
-                                  if (confirmDeleteId === v.id) {
-                                    handleDeleteHistory(v.id);
-                                  } else {
-                                    setConfirmDeleteId(v.id);
-                                    setTimeout(() => setConfirmDeleteId(null), 5000);
-                                  }
+                                  setHistoryVehicleToDelete(v);
                                 }}
                                 className={cn(
                                   "p-2 transition-all rounded-full relative z-[200] flex items-center gap-1",
-                                  confirmDeleteId === v.id 
-                                    ? "bg-rose-500 text-white px-3" 
-                                    : (isDarkMode ? "text-slate-500 hover:text-rose-400 hover:bg-slate-800" : "text-slate-400 hover:text-rose-500 hover:bg-rose-50")
+                                  isDarkMode ? "text-slate-500 hover:text-rose-400 hover:bg-slate-800" : "text-slate-400 hover:text-rose-500 hover:bg-rose-50"
                                 )}
-                                title={confirmDeleteId === v.id ? "Confirmar eliminación" : "Eliminar registro"}
+                                title="Eliminar registro"
                               >
-                                {confirmDeleteId === v.id ? (
-                                  <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">¿Borrar?</span>
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
@@ -2353,6 +2347,74 @@ export default function App() {
                     className="w-full py-4 text-slate-400 hover:text-slate-600 font-bold text-[10px] uppercase tracking-widest transition-colors"
                   >
                     Cerrar Detalle
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {historyVehicleToDelete && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isDeletingHistory && setHistoryVehicleToDelete(null)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-sm shadow-2xl overflow-hidden rounded-3xl",
+                isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-white border border-slate-100"
+              )}
+            >
+              <div className="p-8 text-center space-y-6">
+                <div className="w-20 h-20 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle className="w-10 h-10" />
+                </div>
+                
+                <div className="space-y-3">
+                  <h3 className={cn("text-xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>
+                    ¿Confirmar eliminación?
+                  </h3>
+                  <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                    Estás por borrar permanentemente el registro de la patente:
+                  </p>
+                  <div className={cn(
+                    "inline-block px-4 py-2 mt-2 rounded-xl font-mono text-2xl font-black uppercase border-2",
+                    isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100 text-slate-900"
+                  )}>
+                    {historyVehicleToDelete.plate}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <button
+                    disabled={isDeletingHistory}
+                    onClick={() => setHistoryVehicleToDelete(null)}
+                    className={cn(
+                      "py-4 font-black text-[10px] uppercase tracking-widest transition-all",
+                      "rounded-xl border",
+                      isDarkMode ? "bg-slate-800 border-slate-700 text-slate-400 hover:text-white" : "bg-white border-slate-200 text-slate-400 hover:text-slate-600"
+                    )}
+                  >
+                    No, volver
+                  </button>
+                  <button
+                    disabled={isDeletingHistory}
+                    onClick={() => historyVehicleToDelete.id && handleDeleteHistory(historyVehicleToDelete.id)}
+                    className={cn(
+                      "py-4 bg-rose-600 text-white font-black text-[10px] uppercase tracking-widest shadow-xl shadow-rose-500/20 hover:bg-rose-700 transition-all flex items-center justify-center gap-2",
+                      "rounded-xl",
+                      isDeletingHistory && "opacity-50"
+                    )}
+                  >
+                    {isDeletingHistory ? <Activity className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Si, eliminar
                   </button>
                 </div>
               </div>
