@@ -74,7 +74,7 @@ export default function App() {
     }
     return false;
   });
-  const [activeView, setActiveView] = useState<'monitor' | 'entry' | 'activity' | 'history' | 'reports' | 'settings' | 'monthly' | 'establishments'>('monitor');
+  const [activeView, setActiveView] = useState<'monitor' | 'activity' | 'history' | 'reports' | 'settings' | 'monthly' | 'establishments'>('monitor');
   const [plate, setPlate] = useState('');
   const [selectedVehicleType, setSelectedVehicleType] = useState<'car' | 'motorcycle'>('car');
   const [selectedEntryType, setSelectedEntryType] = useState<'daily' | 'monthly'>('daily');
@@ -86,6 +86,7 @@ export default function App() {
   const [editableAmount, setEditableAmount] = useState<number>(0);
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [monthlyPasses, setMonthlyPasses] = useState<any[]>([]);
+  const [selectedHistoryVehicle, setSelectedHistoryVehicle] = useState<Vehicle | null>(null);
   const plateInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-detect monthly pass when typing plate
@@ -132,7 +133,6 @@ export default function App() {
     } else {
       setSelectedSlot(slotId);
       setConfirmingExitId(null);
-      setActiveView('entry');
       
       setTimeout(() => plateInputRef.current?.focus(), 50);
     }
@@ -618,9 +618,11 @@ export default function App() {
     </div>
   );
 
+  const currentTheme = isDarkMode ? 'dark' : 'light';
+
   return (
     <div className={cn(
-      "h-screen flex flex-col font-sans overflow-hidden transition-colors duration-500",
+      "h-screen flex flex-col lg:flex-row font-sans overflow-hidden transition-colors duration-500",
       isDarkMode ? "bg-slate-950 text-slate-100" : "bg-[#FDFCFB] text-slate-800"
     )}>
       {/* Background gradients for Android 16 depth */}
@@ -635,70 +637,119 @@ export default function App() {
         )} />
       </div>
 
-      {/* Header */}
-      <header className={cn(
-        "h-16 md:h-20 backdrop-blur-2xl border-b flex items-center justify-between px-4 md:px-8 shrink-0 z-50 transition-all duration-500",
-        isDarkMode ? "bg-slate-900/40 border-slate-800 shadow-[0_4px_30px_rgba(0,0,0,0.1)]" : "bg-white/40 border-slate-100 shadow-[0_4px_30px_rgba(0,0,0,0.02)]"
+      {/* Desktop Lateral Sidebar */}
+      <aside className={cn(
+        "hidden lg:flex w-64 xl:w-72 flex-col border-r shrink-0 z-50 transition-all duration-500",
+        isDarkMode ? "bg-slate-900/40 border-slate-800" : "bg-white border-slate-100"
       )}>
-        <div className="flex items-center gap-2 md:gap-4">
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl flex items-center justify-center text-white cursor-pointer shadow-[0_8px_20px_rgba(37,99,235,0.3)]" onClick={() => setActiveView('monitor')}>
-            <ParkingIcon className="w-6 h-6 md:w-7 md:h-7" />
+        <div className="p-8 flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center text-white shadow-lg">
+            <ParkingIcon className="w-6 h-6" />
           </div>
-          <div className="relative group">
-            <h1 className={cn(
-              "font-black text-xl md:text-2xl tracking-tighter leading-none transition-all duration-300 flex items-center gap-2",
-              isDarkMode ? "text-white" : "text-slate-900"
-            )}>
+          <div>
+            <h1 className="font-black text-lg tracking-tighter leading-none relative">
               Cochera <span className="bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent">Pro</span>
-              <svg className="w-6 h-6 text-blue-500/20 absolute -top-3 -right-6 scale-150 rotate-12" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="12" r="8" />
+              <svg className="absolute -bottom-2 lg:-bottom-3 left-0 w-full h-1 overflow-visible" viewBox="0 0 100 4" preserveAspectRatio="none">
+                <path d="M0 2 C 20 0, 40 4, 60 2 S 100 0, 100 2" stroke="url(#line-gradient-sidebar)" strokeWidth="2" fill="none" />
+                <defs>
+                  <linearGradient id="line-gradient-sidebar" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#3b82f6" />
+                    <stop offset="100%" stopColor="#6366f1" />
+                  </linearGradient>
+                </defs>
               </svg>
             </h1>
-            <p className="text-[9px] md:text-[10px] text-slate-500 font-extrabold uppercase tracking-widest mt-0.5">Gestión de Playa</p>
-            {/* SVG stylized pattern for the title */}
-            <svg className="absolute -bottom-2 left-0 w-full h-1 overflow-visible" viewBox="0 0 100 4" preserveAspectRatio="none">
-              <path d="M0 2 C 20 0, 40 4, 60 2 S 100 0, 100 2" stroke="url(#line-gradient)" strokeWidth="1.5" fill="none" />
-              <defs>
-                <linearGradient id="line-gradient" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#3b82f6" />
-                  <stop offset="100%" stopColor="#6366f1" />
-                </linearGradient>
-              </defs>
-            </svg>
+            <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest mt-0.5">Gestión de Playa</p>
           </div>
         </div>
 
-        <div className="hidden lg:flex gap-8">
+        <nav className="flex-1 px-4 space-y-1 overflow-y-auto py-2">
+          {[
+            { id: 'monitor', icon: Activity, label: 'Panel Principal' },
+            { id: 'history', icon: HistoryIcon, label: 'Historial' },
+            { id: 'monthly', icon: CheckCircle2, label: 'Abonados' },
+            { id: 'reports', icon: Search, label: 'Reportes y Caja' },
+            { id: 'settings', icon: SettingsIcon, label: 'Configuración' },
+            ...(isSuperAdmin ? [{ id: 'establishments', icon: Building2, label: 'Mis Cocheras' }] : []),
+          ].map((v) => (
+            <button 
+              key={v.id}
+              onClick={() => setActiveView(v.id as any)}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3.5 transition-all group relative",
+                "rounded-xl",
+                activeView === v.id 
+                  ? (isDarkMode ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-sm" : "bg-indigo-50 text-indigo-600 border border-indigo-100 shadow-sm") 
+                  : (isDarkMode ? "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50")
+              )}
+            >
+              <v.icon className={cn("w-5 h-5", activeView === v.id ? "scale-110" : "group-hover:scale-110 transition-transform")} />
+              <span className="text-sm font-bold tracking-tight">{v.label}</span>
+              {activeView === v.id && (
+                <motion.div layoutId="sidebar-indicator" className="absolute left-0 w-1 h-6 bg-indigo-500 rounded-full" />
+              )}
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-4 mt-auto">
           <div className={cn(
-            "px-4 py-2 rounded-2xl border flex items-center gap-3 transition-colors duration-500",
-            isDarkMode ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-100"
+            "p-5 rounded-2xl border mb-4 space-y-4",
+            isDarkMode ? "bg-slate-800/50 border-slate-700" : "bg-slate-50 border-slate-100"
           )}>
-            <div className="text-right">
-              <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none mb-1">Ocupación</p>
-              <p className={cn(
-                "text-xl font-black leading-none",
-                isDarkMode ? "text-indigo-400" : "text-indigo-600"
-              )}>
-                {activeVehicles.length} <span className={cn("font-normal", isDarkMode ? "text-slate-600" : "text-slate-300")}>/ {(settings?.carSlots || 0) + (settings?.motoSlots || 0)}</span>
-              </p>
+            <div className="flex justify-between items-center">
+              <span className="text-[9px] text-slate-400 uppercase font-black tracking-widest">Ocupación</span>
+              <span className={cn("text-xs font-black", isDarkMode ? "text-indigo-400" : "text-indigo-600")}>
+                {activeVehicles.length}/{ (settings?.carSlots || 0) + (settings?.motoSlots || 0) }
+              </span>
             </div>
-            <div className={cn("w-px h-6 transition-colors duration-500", isDarkMode ? "bg-slate-700" : "bg-slate-200")}></div>
-            <div className="text-right">
-              <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none mb-1">Caja Hoy</p>
-              <p className={cn(
-                "text-xl font-black leading-none",
-                isDarkMode ? "text-emerald-400" : "text-emerald-600"
-              )}>
-                {formatCurrency(history.reduce((acc, v) => acc + (v.totalAmount || 0), 0))}
-              </p>
+            <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, (activeVehicles.length / ((settings?.carSlots || 0) + (settings?.motoSlots || 0) || 1)) * 100)}%` }}
+                className={cn(
+                  "h-full rounded-full",
+                  (activeVehicles.length / ((settings?.carSlots || 0) + (settings?.motoSlots || 0) || 1)) > 0.9 ? "bg-rose-500" : "bg-indigo-500"
+                )}
+              />
             </div>
           </div>
-        </div>
 
-          <div className="flex items-center gap-1 md:gap-2">
-            {/* Establishment Selector */}
+          <button 
+            onClick={logout}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 transition-all group",
+              "rounded-xl",
+              isDarkMode ? "text-slate-500 hover:text-red-400 hover:bg-red-950/20" : "text-slate-400 hover:text-red-500 hover:bg-red-50"
+            )}
+          >
+            <LogOut className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+            <span className="text-sm font-bold">Cerrar Sesión</span>
+          </button>
+        </div>
+      </aside>
+
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Header / TopBar */}
+        <header className={cn(
+          "h-16 md:h-20 lg:h-16 backdrop-blur-2xl border-b flex items-center justify-between px-4 md:px-8 shrink-0 z-40 transition-all duration-500",
+          isDarkMode ? "bg-slate-900/40 border-slate-800 shadow-[0_4px_30px_rgba(0,0,0,0.1)]" : "bg-white/40 border-slate-100 shadow-[0_4px_30px_rgba(0,0,0,0.02)]"
+        )}>
+          <div className="flex items-center gap-2 lg:hidden">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center text-white" onClick={() => setActiveView('monitor')}>
+              <ParkingIcon className="w-6 h-6" />
+            </div>
+            <h1 className="font-black text-xl tracking-tighter lg:hidden relative">
+              Cochera <span className="text-blue-500">Pro</span>
+              <svg className="absolute -bottom-1 left-0 w-full h-1 overflow-visible" viewBox="0 0 100 4" preserveAspectRatio="none">
+                <path d="M0 2 C 20 0, 40 4, 60 2 S 100 0, 100 2" stroke="#3b82f6" strokeWidth="2" fill="none" />
+              </svg>
+            </h1>
+          </div>
+
+          <div className="hidden lg:flex items-center gap-4">
             {(isSuperAdmin && establishments.length > 0) && (
-              <div className="relative group mr-2">
+              <div className="relative group">
                 <select
                   value={selectedEstId || ''}
                   onChange={(e) => {
@@ -708,14 +759,14 @@ export default function App() {
                     setActiveView('monitor');
                   }}
                   className={cn(
-                    "appearance-none bg-transparent pl-4 pr-10 py-2.5 rounded-xl border font-bold text-sm focus:outline-none transition-all cursor-pointer",
+                    "appearance-none bg-transparent pl-4 pr-10 py-2 rounded-xl border font-bold text-sm focus:outline-none transition-all cursor-pointer",
                     isDarkMode 
                       ? "border-slate-800 text-slate-300 hover:bg-slate-800" 
-                      : "border-slate-100 text-slate-600 hover:bg-slate-50"
+                      : "border-slate-100 text-slate-600 hover:bg-slate-50 shadow-sm"
                   )}
                 >
                   {establishments.map(est => (
-                    <option key={est.id} value={est.id} className={isDarkMode ? "bg-slate-900" : "bg-white"}>
+                    <option key={est.id} value={est.id} className={isDarkMode ? "bg-slate-900 text-white" : "bg-white text-slate-900"}>
                       {est.name}
                     </option>
                   ))}
@@ -725,275 +776,46 @@ export default function App() {
                 </div>
               </div>
             )}
-
-            {/* Dark Mode Toggle */}
-            <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className={cn(
-              "p-2.5 rounded-xl transition-all border group relative",
-              isDarkMode 
-                ? "bg-slate-800 border-slate-700 text-amber-400" 
-                : "bg-white border-slate-100 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
-            )}
-            title={isDarkMode ? "Modo Claro" : "Modo Oscuro"}
-          >
-             {isDarkMode ? 
-              <motion.div initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }}><Sun className="w-5 h-5 fill-amber-400/20" /></motion.div> : 
-              <motion.div initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }}><Moon className="w-5 h-5" /></motion.div>}
-          </button>
-
-              <div className="hidden md:flex items-center gap-1">
-                {[
-                  { id: 'monitor', icon: Activity, label: 'Monitor' },
-                  { id: 'history', icon: HistoryIcon, label: 'Historial' },
-                  { id: 'monthly', icon: CheckCircle2, label: 'Abonados' },
-                  { id: 'reports', icon: Search, label: 'Reportes' },
-                  { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
-                  ...(isSuperAdmin ? [{ id: 'establishments', icon: Building2, label: 'Cocheras' }] : []),
-                ].map((v) => (
-                  <button 
-                    key={v.id}
-                    onClick={() => setActiveView(v.id as any)}
-                    className={cn(
-                      "p-2.5 transition-all border group relative",
-                      "rounded-md",
-                      activeView === v.id 
-                        ? "bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-100" 
-                        : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300" : "bg-white border-transparent text-slate-400 hover:bg-slate-50 hover:text-slate-600")
-                    )}
-                    title={v.label}
-                  >
-                    <v.icon className={cn("w-5 h-5", activeView === v.id ? "scale-110" : "")} />
-                    {activeView === v.id && (
-                      <motion.div layoutId="header-active" className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full" />
-                    )}
-                  </button>
-                ))}
+            <div className={cn("px-4 py-2 rounded-xl border flex items-center gap-4", isDarkMode ? "bg-slate-800/30 border-slate-800" : "bg-slate-50/50 border-slate-100")}>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cochera Seleccionada</span>
+                <span className="text-sm font-bold">{currentEst?.name || 'Ninguna'}</span>
               </div>
-          <div className={cn("hidden md:block w-[1px] h-6 mx-2 transition-colors duration-500", isDarkMode ? "bg-slate-800" : "bg-slate-200")} />
-          <button 
-            onClick={logout}
-            className={cn(
-              "p-2 md:p-2.5 transition-all border border-transparent group",
-              "rounded-md",
-              isDarkMode ? "hover:bg-red-950 text-slate-500 hover:text-red-400 hover:border-red-900" : "hover:bg-red-50 text-slate-400 hover:text-red-500 hover:border-red-100"
-            )}
-            title="Cerrar Sesión"
-          >
-            <LogOut className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-          </button>
-        </div>
-      </header>
-
-      <main className="flex-1 flex flex-col md:flex-row gap-4 md:gap-6 p-3 md:p-6 overflow-hidden relative">
-        {/* Left Column: Sidebar (Desktop Only) */}
-        <div className="hidden md:flex w-72 flex-col gap-6 shrink-0 h-full overflow-y-auto pr-1">
-          {/* Entry Form */}
-          <div className={cn(
-            "border p-6 shadow-sm flex flex-col gap-6 transition-colors duration-500",
-            "rounded-lg",
-            isDarkMode ? "bg-slate-900 border-slate-800 bg-gradient-to-b from-slate-900 to-slate-800" : "bg-white border-slate-200 bg-gradient-to-b from-white to-slate-50/50"
-          )}>
-            <h2 className={cn(
-              "font-black flex items-center gap-2 text-xs uppercase tracking-[0.2em]",
-              isDarkMode ? "text-slate-400" : "text-slate-900"
-            )}>
-               Entrada
-            </h2>
-            <form onSubmit={handleEntry} className="flex flex-col gap-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Vehículo</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setSelectedVehicleType('car');
-                      setSelectedSlot('');
-                    }}
-                    className={cn(
-                      "flex items-center justify-center gap-2 py-3 border-2 transition-all font-bold text-xs uppercase tracking-widest",
-                      "rounded-md",
-                      selectedVehicleType === 'car' 
-                        ? "bg-indigo-600 border-indigo-500 text-white shadow-lg" 
-                        : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
-                    )}
-                  >
-                    <Car className="w-4 h-4" />
-                    Auto
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setSelectedVehicleType('motorcycle');
-                      setSelectedSlot('');
-                    }}
-                    className={cn(
-                      "flex items-center justify-center gap-2 py-3 border-2 transition-all font-bold text-xs uppercase tracking-widest",
-                      "rounded-md",
-                      selectedVehicleType === 'motorcycle' 
-                        ? "bg-indigo-600 border-indigo-500 text-white shadow-lg" 
-                        : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
-                    )}
-                  >
-                    <MotorcycleIcon className="w-4 h-4" />
-                    Moto
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Ingreso</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    type="button"
-                    onClick={() => setSelectedEntryType('daily')}
-                    className={cn(
-                      "flex items-center justify-center gap-2 py-2.5 border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
-                      "rounded-md",
-                      selectedEntryType === 'daily' 
-                        ? "bg-indigo-600 border-indigo-500 text-white shadow-lg" 
-                        : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
-                    )}
-                  >
-                    Diario
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setSelectedEntryType('monthly')}
-                    className={cn(
-                      "flex items-center justify-center gap-2 py-2.5 border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
-                      "rounded-md",
-                      selectedEntryType === 'monthly' 
-                        ? "bg-indigo-600 border-indigo-500 text-white shadow-lg" 
-                        : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
-                    )}
-                  >
-                    Abono
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cochera</label>
-                <div className="flex gap-2 items-center">
-                  <div className={cn(
-                    "flex-1 border-2 px-4 py-3 font-mono text-xl flex items-center justify-center gap-2 transition-all shadow-sm",
-                    "rounded-md",
-                    selectedSlot 
-                      ? (isDarkMode ? "border-emerald-600 text-emerald-400 bg-emerald-950/20" : "border-emerald-500 text-emerald-600 bg-white") 
-                      : (isDarkMode ? "border-slate-800 text-slate-700 bg-slate-950" : "border-slate-100 text-slate-300 bg-white")
-                  )}>
-                    {selectedSlot || "---"}
-                  </div>
-                  {selectedSlot && (
-                    <button 
-                      type="button"
-                      onClick={() => setSelectedSlot('')}
-                      className={cn(
-                        "p-3 transition-all",
-                        "rounded-md",
-                        isDarkMode ? "bg-red-950/40 text-red-400 border border-red-900" : "bg-red-50 text-red-500"
-                      )}
-                    >
-                      <XCircle className="w-5 h-5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-2 relative">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Patente</label>
-                <div className="relative">
-                  <input 
-                    ref={plateInputRef}
-                    type="text" 
-                    value={plate}
-                    onChange={(e) => {
-                      setPlate(e.target.value.toUpperCase());
-                      setShowSuggestions(true);
-                    }}
-                    onFocus={() => setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                    placeholder="PLATE-ID" 
-                    className={cn(
-                      "w-full px-5 py-4 border-2 font-mono text-2xl font-black text-center focus:outline-none focus:border-indigo-500 transition-all uppercase",
-                      "rounded-md",
-                      isDarkMode ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-800" : "bg-white border-slate-100 shadow-sm"
-                    )}
-                  />
-                  {showSuggestions && plate.length >= 2 && (
-                    <div className={cn(
-                      "absolute left-0 right-0 top-full mt-1 z-[100] border overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-2xl",
-                      "rounded-lg",
-                      isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
-                    )}>
-                      {allHistoricalPlates
-                        .filter(p => p.toUpperCase().includes(plate.toUpperCase()) && p.toUpperCase() !== plate.toUpperCase())
-                        .slice(0, 5)
-                        .map(s => (
-                          <button
-                            key={s}
-                            type="button"
-                            onClick={() => {
-                              setPlate(s);
-                              setShowSuggestions(false);
-                            }}
-                            className={cn(
-                              "w-full px-4 py-3 text-left font-mono font-black text-lg border-b last:border-b-0 transition-colors uppercase",
-                              isDarkMode ? "border-slate-700 hover:bg-slate-700 text-white" : "border-slate-50 hover:bg-slate-50 text-slate-900"
-                            )}
-                          >
-                            {s}
-                          </button>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <button 
-                disabled={isSubmitting || !plate.trim() || !selectedSlot}
-                className={cn(
-                  "w-full bg-indigo-600 text-white font-black py-5 transition-all shadow-xl shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-3 text-sm tracking-widest hover:scale-[1.02] active:scale-95 disabled:opacity-50",
-                  "rounded-md"
-                )}
-              >
-                {isSubmitting ? <Activity className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                INGRESAR
-              </button>
-            </form>
-          </div>
-
-          {/* Nav Actions (Desktop) */}
-          <div className={cn(
-            "border p-6 shadow-sm transition-colors duration-500",
-            "rounded-lg",
-            isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
-          )}>
-            <h2 className={cn("font-black mb-6 text-xs uppercase tracking-[0.2em]", isDarkMode ? "text-slate-400" : "text-slate-900")}>Opciones</h2>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { id: 'monitor', icon: Activity, label: 'Cocheras' },
-                { id: 'history', icon: HistoryIcon, label: 'Historial' },
-                { id: 'monthly', icon: CheckCircle2, label: 'Abonos' },
-                { id: 'reports', icon: Search, label: 'Estadísticas' },
-                { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
-                ...(isSuperAdmin ? [{ id: 'establishments', icon: Building2, label: 'Admin' }] : []),
-              ].map((v) => (
-                  <button 
-                    key={v.id}
-                    onClick={() => setActiveView(v.id as any)}
-                    className={cn(
-                      "flex flex-col items-center justify-center p-5 border-2 transition-all gap-2 group",
-                      "rounded-md",
-                      activeView === v.id 
-                        ? (isDarkMode ? "bg-slate-800 border-indigo-900 text-indigo-400" : "bg-indigo-50 border-indigo-200 text-indigo-600") 
-                        : (isDarkMode ? "bg-slate-950 border-transparent text-slate-600 hover:border-slate-800" : "bg-slate-50 border-transparent text-slate-400 hover:border-slate-200")
-                    )}
-                  >
-                  <v.icon className={cn("w-6 h-6", activeView === v.id ? "animate-pulse" : "group-hover:scale-110 transition-transform")} />
-                  <span className="text-[9px] font-black uppercase tracking-tighter">{v.label}</span>
-                </button>
-              ))}
             </div>
           </div>
-        </div>
+
+          <div className="flex items-center gap-2 md:gap-4">
+            <div className="hidden sm:flex flex-col items-right text-right mr-2">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Operador</span>
+              <span className="text-xs font-bold block">{user?.displayName || user?.email?.split('@')[0]}</span>
+            </div>
+
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={cn(
+                "p-2.5 rounded-xl transition-all border group relative",
+                isDarkMode 
+                  ? "bg-slate-800 border-slate-700 text-amber-400" 
+                  : "bg-white border-slate-100 text-slate-400 hover:bg-slate-50 hover:text-slate-600 shadow-sm"
+              )}
+            >
+              {isDarkMode ? <Sun className="w-5 h-5 fill-amber-400/20" /> : <Moon className="w-5 h-5" />}
+            </button>
+            
+            <button 
+              onClick={logout}
+              className={cn(
+                "lg:hidden p-2.5 transition-all border border-transparent rounded-xl",
+                isDarkMode ? "hover:bg-red-950 text-slate-500 hover:text-red-400" : "hover:bg-red-50 text-slate-400 hover:text-red-500"
+              )}
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 flex flex-col md:flex-row gap-4 md:gap-6 p-4 md:p-6 lg:p-8 overflow-hidden relative">
+          {/* Center Content Column */}
 
         {/* Center Content Column */}
         <div className={cn(
@@ -1011,14 +833,22 @@ export default function App() {
                 "text-[9px] font-black uppercase tracking-[0.3em] mb-1",
                 isDarkMode ? "text-indigo-400" : "text-indigo-500"
               )}>
-                {activeView === 'monitor' ? 'SISTEMA DE CONTROL' : activeView === 'entry' ? 'REGISTRO DE INGRESO' : 'ADMINISTRACIÓN'}
+                {activeView === 'monitor' ? 'SISTEMA DE CONTROL' : 'ADMINISTRACIÓN'}
               </p>
-              <h2 className={cn("font-black text-xl md:text-2xl tracking-tight transition-colors duration-500 flex items-center gap-2", isDarkMode ? "text-white" : "text-slate-900")}>
+              <h2 className={cn("font-black text-xl md:text-2xl tracking-tight transition-colors duration-500 flex items-center gap-2 relative", isDarkMode ? "text-white" : "text-slate-900")}>
                 {activeView === 'monitor' ? <><Building2 className="w-6 h-6 text-indigo-500" /> Mapa de Cocheras</> : 
-                 activeView === 'entry' ? <><Plus className="w-6 h-6 text-indigo-500" /> Nueva Entrada</> : 
                  activeView === 'activity' ? <><Activity className="w-6 h-6 text-indigo-500" /> Sesiones Activas</> :
                  activeView === 'history' ? <><HistoryIcon className="w-6 h-6 text-indigo-500" /> Historial</> : 
                  activeView === 'reports' ? <><Search className="w-6 h-6 text-indigo-500" /> Analítica</> : <><SettingsIcon className="w-6 h-6 text-indigo-500" /> Ajustes</>}
+                <svg className="absolute -bottom-1 left-0 w-full h-1 overflow-visible opacity-50" viewBox="0 0 100 4" preserveAspectRatio="none">
+                  <path d="M0 2 Q 25 4, 50 2 T 100 2" stroke="url(#line-gradient-content)" strokeWidth="2" fill="none" />
+                  <defs>
+                    <linearGradient id="line-gradient-content" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#6366f1" />
+                      <stop offset="100%" stopColor="#3b82f6" />
+                    </linearGradient>
+                  </defs>
+                </svg>
               </h2>
             </div>
             
@@ -1669,11 +1499,15 @@ export default function App() {
                         const isMonthly = v.entryType === 'monthly';
 
                         return (
-                          <div key={v.id} className={cn(
-                            "border p-3 flex items-center justify-between transition-all group",
-                            "rounded-lg",
-                            isDarkMode ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-white border-slate-100 hover:border-slate-200 shadow-sm"
-                          )}>
+                          <div 
+                            key={v.id} 
+                            onClick={() => setSelectedHistoryVehicle(v)}
+                            className={cn(
+                              "border p-3 flex items-center justify-between transition-all group cursor-pointer",
+                              "rounded-lg",
+                              isDarkMode ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-white border-slate-100 hover:border-slate-200 shadow-sm"
+                            )}
+                          >
                             <div className="flex items-center gap-3">
                               <div className={cn(
                                 "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
@@ -1723,7 +1557,7 @@ export default function App() {
                                     handleDeleteHistory(v.id);
                                   } else {
                                     setConfirmDeleteId(v.id);
-                                    setTimeout(() => setConfirmDeleteId(null), 3000);
+                                    setTimeout(() => setConfirmDeleteId(null), 5000);
                                   }
                                 }}
                                 className={cn(
@@ -2416,6 +2250,115 @@ export default function App() {
             </motion.div>
           </div>
         )}
+
+        {selectedHistoryVehicle && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedHistoryVehicle(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-md shadow-2xl overflow-hidden transition-colors duration-500 rounded-2xl flex flex-col",
+                isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-white border border-slate-100"
+              )}
+            >
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-indigo-600 to-emerald-500" />
+              
+              <div className="p-8 space-y-8">
+                <div className="flex flex-col items-center gap-6 min-h-[160px]">
+                  <div className={cn(
+                    "w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg",
+                    isDarkMode ? "bg-slate-800 text-indigo-400" : "bg-indigo-50 text-indigo-600"
+                  )}>
+                    {selectedHistoryVehicle.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-10 h-10" /> : <Car className="w-10 h-10" />}
+                  </div>
+                  
+                  <div className="text-center space-y-2">
+                    <h3 className={cn(
+                      "text-5xl font-black font-mono tracking-tighter uppercase px-6 py-3 rounded-2xl border-4",
+                      isDarkMode 
+                        ? "bg-slate-950 border-slate-800 text-white" 
+                        : "bg-slate-50 border-slate-100 text-slate-900 shadow-inner"
+                    )}>
+                      {selectedHistoryVehicle.plate}
+                    </h3>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className={cn(
+                        "text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg",
+                        selectedHistoryVehicle.entryType === 'monthly' ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
+                      )}>
+                        {selectedHistoryVehicle.entryType === 'monthly' ? 'Abonado' : 'Diario'}
+                      </span>
+                      <span className={cn("w-1.5 h-1.5 rounded-full", isDarkMode ? "bg-slate-800" : "bg-slate-200")} />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        {selectedHistoryVehicle.vehicleType === 'car' ? 'Automóvil' : 'Motocicleta'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className={cn("p-4 rounded-2xl border", isDarkMode ? "bg-slate-800/40 border-slate-800" : "bg-slate-50 border-slate-100/50")}>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Entrada</p>
+                    <p className="text-lg font-black">{selectedHistoryVehicle.entryTime ? format(selectedHistoryVehicle.entryTime.toDate(), 'HH:mm') : '--:--'}</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">{selectedHistoryVehicle.entryTime ? format(selectedHistoryVehicle.entryTime.toDate(), 'dd MMM yyyy', { locale: es }) : ''}</p>
+                  </div>
+                  <div className={cn("p-4 rounded-2xl border", isDarkMode ? "bg-slate-800/40 border-slate-800" : "bg-slate-50 border-slate-100/50")}>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Salida</p>
+                    <p className="text-lg font-black">{selectedHistoryVehicle.exitTime ? format(selectedHistoryVehicle.exitTime.toDate(), 'HH:mm') : '--:--'}</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">{selectedHistoryVehicle.exitTime ? format(selectedHistoryVehicle.exitTime.toDate(), 'dd MMM yyyy', { locale: es }) : ''}</p>
+                  </div>
+                  <div className={cn("p-4 rounded-2xl border", isDarkMode ? "bg-slate-800/40 border-slate-800" : "bg-slate-50 border-slate-100/50")}>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Duración</p>
+                    <p className="text-lg font-black">
+                      {(() => {
+                        if (!selectedHistoryVehicle.entryTime || !selectedHistoryVehicle.exitTime) return '--';
+                        const diff = selectedHistoryVehicle.exitTime.toDate().getTime() - selectedHistoryVehicle.entryTime.toDate().getTime();
+                        const h = Math.floor(diff / (3600000));
+                        const m = Math.floor((diff % 3600000) / 60000);
+                        return `${h}h ${m}m`;
+                      })()}
+                    </p>
+                  </div>
+                  <div className={cn("p-4 rounded-2xl border flex flex-col justify-center transition-colors shadow-lg shadow-emerald-500/5", isDarkMode ? "bg-emerald-950/20 border-emerald-900/40" : "bg-emerald-50 border-emerald-100")}>
+                    <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">Total Pagado</p>
+                    <p className="text-2xl font-black text-emerald-500">{formatCurrency(selectedHistoryVehicle.totalAmount)}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => {
+                      setHistorySearchTerm(selectedHistoryVehicle.plate);
+                      setActiveView('history');
+                      setSelectedHistoryVehicle(null);
+                    }}
+                    className={cn(
+                      "w-full py-5 bg-indigo-600 text-white font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3",
+                      "rounded-xl"
+                    )}
+                  >
+                    <HistoryIcon className="w-5 h-5" />
+                    Ver historial completo
+                  </button>
+                  <button 
+                    onClick={() => setSelectedHistoryVehicle(null)}
+                    className="w-full py-4 text-slate-400 hover:text-slate-600 font-bold text-[10px] uppercase tracking-widest transition-colors"
+                  >
+                    Cerrar Detalle
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* Bottom Nav (Mobile Only) */}
@@ -2424,10 +2367,9 @@ export default function App() {
         isDarkMode ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-200"
       )}>
         {[
-          { id: 'monitor', icon: Activity, label: 'Cocheras' },
-          { id: 'activity', icon: Car, label: 'Sesiones' },
-          { id: 'reports', icon: Search, label: 'Caja' },
-          { id: 'history', icon: HistoryIcon, label: 'Pasados' },
+          { id: 'monitor', icon: Activity, label: 'Panel' },
+          { id: 'reports', icon: Search, label: 'Reportes' },
+          { id: 'history', icon: HistoryIcon, label: 'Historial' },
           { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
         ].map((v) => (
           <button 
@@ -2461,7 +2403,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className={cn(
-        "h-16 border-t flex items-center px-8 gap-12 shrink-0 transition-colors duration-500",
+        "lg:hidden h-16 border-t flex items-center px-8 gap-12 shrink-0 transition-colors duration-500",
         isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
       )}>
         <div className="flex items-center gap-8">
@@ -2489,6 +2431,7 @@ export default function App() {
           </div>
         </div>
       </footer>
+    </div>
     </div>
   );
 }
