@@ -42,6 +42,8 @@ import {
   Users,
   AlertCircle,
   AlertTriangle,
+  HelpCircle,
+  MousePointer2,
   Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -75,7 +77,7 @@ export default function App() {
     }
     return false;
   });
-  const [activeView, setActiveView] = useState<'monitor' | 'activity' | 'history' | 'reports' | 'settings' | 'monthly' | 'establishments'>('monitor');
+  const [activeView, setActiveView] = useState<'monitor' | 'activity' | 'history' | 'reports' | 'settings' | 'monthly' | 'establishments' | 'help'>('monitor');
   const [plate, setPlate] = useState('');
   const [selectedVehicleType, setSelectedVehicleType] = useState<'car' | 'motorcycle'>('car');
   const [selectedEntryType, setSelectedEntryType] = useState<'daily' | 'monthly'>('daily');
@@ -674,6 +676,7 @@ export default function App() {
             { id: 'history', icon: HistoryIcon, label: 'Historial' },
             { id: 'monthly', icon: CheckCircle2, label: 'Abonados' },
             { id: 'reports', icon: Search, label: 'Reportes y Caja' },
+            { id: 'help', icon: HelpCircle, label: 'Ayuda y Soporte' },
             { id: 'settings', icon: SettingsIcon, label: 'Configuración' },
             ...(isSuperAdmin ? [{ id: 'establishments', icon: Building2, label: 'Mis Cocheras' }] : []),
           ].map((v) => (
@@ -844,7 +847,9 @@ export default function App() {
                 {activeView === 'monitor' ? <><Building2 className="w-6 h-6 text-indigo-500" /> Cocheras</> : 
                  activeView === 'activity' ? <><Activity className="w-6 h-6 text-indigo-500" /> Sesiones Activas</> :
                  activeView === 'history' ? <><HistoryIcon className="w-6 h-6 text-indigo-500" /> Historial</> : 
-                 activeView === 'reports' ? <><Search className="w-6 h-6 text-indigo-500" /> Analítica</> : <><SettingsIcon className="w-6 h-6 text-indigo-500" /> Ajustes</>}
+                 activeView === 'reports' ? <><Search className="w-6 h-6 text-indigo-500" /> Analítica</> : 
+                 activeView === 'help' ? <><HelpCircle className="w-6 h-6 text-indigo-500" /> Guía de Ayuda</> :
+                 activeView === 'settings' ? <><SettingsIcon className="w-6 h-6 text-indigo-500" /> Ajustes</> : <><Users className="w-6 h-6 text-indigo-500" /> Administración</>}
                 <svg className="absolute -bottom-1 left-0 w-full h-1 overflow-visible opacity-50" viewBox="0 0 100 4" preserveAspectRatio="none">
                   <path d="M0 2 Q 25 4, 50 2 T 100 2" stroke="url(#line-gradient-content)" strokeWidth="2" fill="none" />
                   <defs>
@@ -1464,6 +1469,98 @@ export default function App() {
                         </div>
                       )}
                     </div>
+                </motion.div>
+              ) : activeView === 'help' ? (
+                <motion.div 
+                  key="help"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-6 pb-20"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Guía 1: Ingreso */}
+                    <div className={cn(
+                      "p-8 rounded-[2rem] border overflow-hidden relative",
+                      isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+                    )}>
+                      <div className="relative z-10 space-y-4">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
+                          <MousePointer2 className="w-6 h-6" />
+                        </div>
+                        <h3 className={cn("text-xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>¿Cómo ingresar un vehículo?</h3>
+                        <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                          En el panel de <b>Cocheras</b>, simplemente haz clic en un espacio vacío (azul). 
+                          Se abrirá el formulario para ingresar la patente y el tipo de vehículo. Una vez registrado, el espacio cambiará a color rojo indicando que está ocupado.
+                        </p>
+                      </div>
+                      <div className="mt-8 rounded-2xl border border-slate-200/10 overflow-hidden bg-slate-950/50 p-4">
+                        <div className="aspect-video flex items-center justify-center bg-slate-800 rounded-xl relative">
+                           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-transparent" />
+                           <div className="grid grid-cols-3 gap-2 w-full p-4 opacity-40">
+                             {[1,2,3,4,5,6].map(i => <div key={i} className="h-8 rounded bg-slate-700" />)}
+                           </div>
+                           <motion.div 
+                             animate={{ y: [0, -10, 0], scale: [1, 1.1, 1] }}
+                             transition={{ duration: 2, repeat: Infinity }}
+                             className="z-20 text-indigo-400"
+                           >
+                             <MousePointer2 className="w-12 h-12" />
+                           </motion.div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Guía 2: Salida */}
+                    <div className={cn(
+                      "p-8 rounded-[2rem] border overflow-hidden relative",
+                      isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+                    )}>
+                      <div className="relative z-10 space-y-4">
+                        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
+                          <LogOut className="w-6 h-6" />
+                        </div>
+                        <h3 className={cn("text-xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>¿Cómo retirar un vehículo?</h3>
+                        <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                          Haz clic en cualquier espacio ocupado (rojo) o busca la patente en la sección <b>Sesiones</b>. 
+                          El sistema calculará automáticamente el tiempo y el monto a cobrar basado en tus tarifas configuradas.
+                        </p>
+                      </div>
+                      <div className="mt-8 rounded-2xl border border-slate-200/10 overflow-hidden bg-slate-950/50 p-4">
+                        <div className="aspect-video flex items-center justify-center bg-slate-800 rounded-xl relative">
+                           <div className="absolute inset-0 bg-gradient-to-br from-rose-500/20 to-transparent" />
+                           <div className="w-2/3 h-1/2 rounded-xl bg-slate-700/50 border border-slate-600 flex items-center justify-center gap-4 px-4">
+                              <div className="flex-1 space-y-2">
+                                <div className="h-2 w-12 bg-slate-500 rounded" />
+                                <div className="h-3 w-20 bg-slate-400 rounded" />
+                              </div>
+                              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                              </div>
+                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sección de Soporte */}
+                  <div className={cn(
+                    "p-8 rounded-[2.5rem] border text-center space-y-6",
+                    isDarkMode ? "bg-indigo-900/10 border-indigo-500/20" : "bg-indigo-50 border-indigo-100"
+                  )}>
+                    <div className="w-16 h-16 bg-indigo-500 text-white rounded-full flex items-center justify-center mx-auto shadow-xl shadow-indigo-500/20">
+                      <HelpCircle className="w-8 h-8" />
+                    </div>
+                    <div className="max-w-md mx-auto space-y-2">
+                      <h3 className={cn("text-2xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>¿Necesitas ayuda adicional?</h3>
+                      <p className="text-slate-500 font-medium">Si tienes problemas con la configuración de tarifas o necesitas soporte técnico:</p>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4">
+                       <button className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-indigo-500/30 hover:scale-105 transition-transform">
+                         Contactar Soporte
+                       </button>
+                    </div>
+                  </div>
                 </motion.div>
               ) : activeView === 'history' ? (
                 <motion.div 
@@ -2431,6 +2528,7 @@ export default function App() {
         {[
           { id: 'monitor', icon: Activity, label: 'Panel' },
           { id: 'reports', icon: Search, label: 'Reportes' },
+          { id: 'help', icon: HelpCircle, label: 'Ayuda' },
           { id: 'history', icon: HistoryIcon, label: 'Historial' },
           { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
         ].map((v) => (
