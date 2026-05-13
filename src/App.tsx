@@ -40,7 +40,8 @@ import {
   ChevronDown,
   Building2,
   Users,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -477,6 +478,22 @@ export default function App() {
     }
   };
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDeleteHistory = async (id: string) => {
+    console.log('Solicitando eliminar registro history:', id);
+    try {
+      // Optimistic locally
+      setHistory(prev => prev.filter(v => v.id !== id));
+      await deleteDoc(doc(db, 'vehicles', id));
+      console.log('Registro eliminado exitosamente:', id);
+      setConfirmDeleteId(null);
+    } catch (error) {
+      console.error('Error al eliminar registro:', error);
+      handleFirestoreError(error, OperationType.DELETE, `vehicles/${id}`);
+    }
+  };
+
   const updateSettings = async (
     carRate: number, 
     carHalfHourRate: number,
@@ -514,7 +531,7 @@ export default function App() {
     <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center font-sans overflow-hidden relative">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,#EEF2FF_0%,transparent_50%)]" />
       <div className="flex flex-col items-center gap-6 relative z-10">
-        <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-700 rounded-[2rem] flex items-center justify-center shadow-[0_20px_50px_rgba(59,130,246,0.3)] animate-pulse">
+        <div className={cn("w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-700 flex items-center justify-center shadow-[0_20px_50px_rgba(59,130,246,0.3)] animate-pulse rounded-lg")}>
           <ParkingIcon className="text-white w-10 h-10" />
         </div>
         <div className="flex flex-col items-center gap-2">
@@ -537,15 +554,15 @@ export default function App() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white p-10 max-w-md w-full rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50"
+        className={cn("bg-white p-10 max-w-md w-full border border-slate-200 shadow-xl shadow-slate-200/50 rounded-xl")}
       >
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-200/50">
+          <div className={cn("w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-blue-200/50 rounded-sm")}>
             <ParkingIcon className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">CocheraFlow</h1>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Sistemas Argentinos</p>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">Cochera AR</h1>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Sistemas Profesionales</p>
           </div>
         </div>
         
@@ -560,7 +577,7 @@ export default function App() {
                type="email"
                value={loginEmail}
                onChange={(e) => setLoginEmail(e.target.value)}
-               className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 font-bold"
+               className={cn("w-full px-5 py-3 border border-slate-100 bg-slate-50 font-bold rounded-md")}
                placeholder="nombre@ejemplo.com"
                required
              />
@@ -584,7 +601,7 @@ export default function App() {
           <button 
             type="submit"
             disabled={loginLoading}
-            className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs tracking-widest hover:bg-black transition-all disabled:opacity-50"
+            className={cn("w-full bg-slate-900 text-white py-4 font-black text-xs tracking-widest hover:bg-black transition-all disabled:opacity-50 rounded-md")}
           >
             {loginLoading ? 'INGRESANDO...' : 'INICIAR SESIÓN'}
           </button>
@@ -592,7 +609,7 @@ export default function App() {
 
         <button 
           onClick={login}
-          className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 py-4 px-6 rounded-2xl font-bold hover:bg-slate-50 transition-all group"
+          className={cn("w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 py-4 px-6 font-bold hover:bg-slate-50 transition-all group rounded-md")}
         >
           <LogIn className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           Acceder con Google
@@ -738,7 +755,8 @@ export default function App() {
                     key={v.id}
                     onClick={() => setActiveView(v.id as any)}
                     className={cn(
-                      "p-2.5 rounded-xl transition-all border group relative",
+                      "p-2.5 transition-all border group relative",
+                      "rounded-md",
                       activeView === v.id 
                         ? "bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-100" 
                         : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300" : "bg-white border-transparent text-slate-400 hover:bg-slate-50 hover:text-slate-600")
@@ -756,7 +774,8 @@ export default function App() {
           <button 
             onClick={logout}
             className={cn(
-              "p-2 md:p-2.5 rounded-xl transition-all border border-transparent group",
+              "p-2 md:p-2.5 transition-all border border-transparent group",
+              "rounded-md",
               isDarkMode ? "hover:bg-red-950 text-slate-500 hover:text-red-400 hover:border-red-900" : "hover:bg-red-50 text-slate-400 hover:text-red-500 hover:border-red-100"
             )}
             title="Cerrar Sesión"
@@ -771,7 +790,8 @@ export default function App() {
         <div className="hidden md:flex w-72 flex-col gap-6 shrink-0 h-full overflow-y-auto pr-1">
           {/* Entry Form */}
           <div className={cn(
-            "rounded-3xl border p-6 shadow-sm flex flex-col gap-6 transition-colors duration-500",
+            "border p-6 shadow-sm flex flex-col gap-6 transition-colors duration-500",
+            "rounded-lg",
             isDarkMode ? "bg-slate-900 border-slate-800 bg-gradient-to-b from-slate-900 to-slate-800" : "bg-white border-slate-200 bg-gradient-to-b from-white to-slate-50/50"
           )}>
             <h2 className={cn(
@@ -791,7 +811,8 @@ export default function App() {
                       setSelectedSlot('');
                     }}
                     className={cn(
-                      "flex items-center justify-center gap-2 py-3 rounded-2xl border-2 transition-all font-bold text-xs uppercase tracking-widest",
+                      "flex items-center justify-center gap-2 py-3 border-2 transition-all font-bold text-xs uppercase tracking-widest",
+                      "rounded-md",
                       selectedVehicleType === 'car' 
                         ? "bg-indigo-600 border-indigo-500 text-white shadow-lg" 
                         : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
@@ -807,7 +828,8 @@ export default function App() {
                       setSelectedSlot('');
                     }}
                     className={cn(
-                      "flex items-center justify-center gap-2 py-3 rounded-2xl border-2 transition-all font-bold text-xs uppercase tracking-widest",
+                      "flex items-center justify-center gap-2 py-3 border-2 transition-all font-bold text-xs uppercase tracking-widest",
+                      "rounded-md",
                       selectedVehicleType === 'motorcycle' 
                         ? "bg-indigo-600 border-indigo-500 text-white shadow-lg" 
                         : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
@@ -825,7 +847,8 @@ export default function App() {
                     type="button"
                     onClick={() => setSelectedEntryType('daily')}
                     className={cn(
-                      "flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
+                      "flex items-center justify-center gap-2 py-2.5 border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
+                      "rounded-md",
                       selectedEntryType === 'daily' 
                         ? "bg-indigo-600 border-indigo-500 text-white shadow-lg" 
                         : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
@@ -837,7 +860,8 @@ export default function App() {
                     type="button"
                     onClick={() => setSelectedEntryType('monthly')}
                     className={cn(
-                      "flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
+                      "flex items-center justify-center gap-2 py-2.5 border-2 transition-all font-bold text-[10px] uppercase tracking-widest",
+                      "rounded-md",
                       selectedEntryType === 'monthly' 
                         ? "bg-indigo-600 border-indigo-500 text-white shadow-lg" 
                         : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
@@ -851,7 +875,8 @@ export default function App() {
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cochera</label>
                 <div className="flex gap-2 items-center">
                   <div className={cn(
-                    "flex-1 border-2 rounded-2xl px-4 py-3 font-mono text-xl flex items-center justify-center gap-2 transition-all shadow-sm",
+                    "flex-1 border-2 px-4 py-3 font-mono text-xl flex items-center justify-center gap-2 transition-all shadow-sm",
+                    "rounded-md",
                     selectedSlot 
                       ? (isDarkMode ? "border-emerald-600 text-emerald-400 bg-emerald-950/20" : "border-emerald-500 text-emerald-600 bg-white") 
                       : (isDarkMode ? "border-slate-800 text-slate-700 bg-slate-950" : "border-slate-100 text-slate-300 bg-white")
@@ -863,7 +888,8 @@ export default function App() {
                       type="button"
                       onClick={() => setSelectedSlot('')}
                       className={cn(
-                        "p-3 rounded-2xl transition-all",
+                        "p-3 transition-all",
+                        "rounded-md",
                         isDarkMode ? "bg-red-950/40 text-red-400 border border-red-900" : "bg-red-50 text-red-500"
                       )}
                     >
@@ -887,13 +913,15 @@ export default function App() {
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                     placeholder="PLATE-ID" 
                     className={cn(
-                      "w-full px-5 py-4 border-2 rounded-2xl font-mono text-2xl font-black text-center focus:outline-none focus:border-indigo-500 transition-all uppercase",
-                      isDarkMode ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-800" : "bg-white border-slate-100"
+                      "w-full px-5 py-4 border-2 font-mono text-2xl font-black text-center focus:outline-none focus:border-indigo-500 transition-all uppercase",
+                      "rounded-md",
+                      isDarkMode ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-800" : "bg-white border-slate-100 shadow-sm"
                     )}
                   />
                   {showSuggestions && plate.length >= 2 && (
                     <div className={cn(
-                      "absolute left-0 right-0 top-full mt-1 z-[100] rounded-xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2",
+                      "absolute left-0 right-0 top-full mt-1 z-[100] border overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-2xl",
+                      "rounded-lg",
                       isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
                     )}>
                       {allHistoricalPlates
@@ -921,7 +949,10 @@ export default function App() {
               </div>
               <button 
                 disabled={isSubmitting || !plate.trim() || !selectedSlot}
-                className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl transition-all shadow-xl shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-3 text-sm tracking-widest hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+                className={cn(
+                  "w-full bg-indigo-600 text-white font-black py-5 transition-all shadow-xl shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-3 text-sm tracking-widest hover:scale-[1.02] active:scale-95 disabled:opacity-50",
+                  "rounded-md"
+                )}
               >
                 {isSubmitting ? <Activity className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
                 INGRESAR
@@ -931,7 +962,8 @@ export default function App() {
 
           {/* Nav Actions (Desktop) */}
           <div className={cn(
-            "rounded-3xl border p-6 shadow-sm transition-colors duration-500",
+            "border p-6 shadow-sm transition-colors duration-500",
+            "rounded-lg",
             isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
           )}>
             <h2 className={cn("font-black mb-6 text-xs uppercase tracking-[0.2em]", isDarkMode ? "text-slate-400" : "text-slate-900")}>Opciones</h2>
@@ -944,16 +976,17 @@ export default function App() {
                 { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
                 ...(isSuperAdmin ? [{ id: 'establishments', icon: Building2, label: 'Admin' }] : []),
               ].map((v) => (
-                <button 
-                  key={v.id}
-                  onClick={() => setActiveView(v.id as any)}
-                  className={cn(
-                    "flex flex-col items-center justify-center p-5 rounded-2xl border-2 transition-all gap-2 group",
-                    activeView === v.id 
-                      ? (isDarkMode ? "bg-slate-800 border-indigo-900 text-indigo-400" : "bg-indigo-50 border-indigo-200 text-indigo-600") 
-                      : (isDarkMode ? "bg-slate-950 border-transparent text-slate-600 hover:border-slate-800" : "bg-slate-50 border-transparent text-slate-400 hover:border-slate-200")
-                  )}
-                >
+                  <button 
+                    key={v.id}
+                    onClick={() => setActiveView(v.id as any)}
+                    className={cn(
+                      "flex flex-col items-center justify-center p-5 border-2 transition-all gap-2 group",
+                      "rounded-md",
+                      activeView === v.id 
+                        ? (isDarkMode ? "bg-slate-800 border-indigo-900 text-indigo-400" : "bg-indigo-50 border-indigo-200 text-indigo-600") 
+                        : (isDarkMode ? "bg-slate-950 border-transparent text-slate-600 hover:border-slate-800" : "bg-slate-50 border-transparent text-slate-400 hover:border-slate-200")
+                    )}
+                  >
                   <v.icon className={cn("w-6 h-6", activeView === v.id ? "animate-pulse" : "group-hover:scale-110 transition-transform")} />
                   <span className="text-[9px] font-black uppercase tracking-tighter">{v.label}</span>
                 </button>
@@ -964,7 +997,8 @@ export default function App() {
 
         {/* Center Content Column */}
         <div className={cn(
-          "flex-1 rounded-[2rem] md:rounded-[3rem] border shadow-xl shadow-slate-200/40 flex flex-col overflow-hidden relative transition-colors duration-500",
+          "flex-1 border shadow-xl shadow-slate-200/40 flex flex-col overflow-hidden relative transition-colors duration-500",
+          "rounded-xl",
           isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
         )}>
           {/* Content Header (Mobile Context) */}
@@ -979,12 +1013,12 @@ export default function App() {
               )}>
                 {activeView === 'monitor' ? 'SISTEMA DE CONTROL' : activeView === 'entry' ? 'REGISTRO DE INGRESO' : 'ADMINISTRACIÓN'}
               </p>
-              <h2 className={cn("font-black text-xl md:text-2xl tracking-tight transition-colors duration-500", isDarkMode ? "text-white" : "text-slate-900")}>
-                {activeView === 'monitor' ? 'Mapa de Cocheras' : 
-                 activeView === 'entry' ? 'Nueva Entrada' : 
-                 activeView === 'activity' ? 'Sesiones Activas' :
-                 activeView === 'history' ? 'Historial' : 
-                 activeView === 'reports' ? 'Analítica' : 'Ajustes'}
+              <h2 className={cn("font-black text-xl md:text-2xl tracking-tight transition-colors duration-500 flex items-center gap-2", isDarkMode ? "text-white" : "text-slate-900")}>
+                {activeView === 'monitor' ? <><Building2 className="w-6 h-6 text-indigo-500" /> Mapa de Cocheras</> : 
+                 activeView === 'entry' ? <><Plus className="w-6 h-6 text-indigo-500" /> Nueva Entrada</> : 
+                 activeView === 'activity' ? <><Activity className="w-6 h-6 text-indigo-500" /> Sesiones Activas</> :
+                 activeView === 'history' ? <><HistoryIcon className="w-6 h-6 text-indigo-500" /> Historial</> : 
+                 activeView === 'reports' ? <><Search className="w-6 h-6 text-indigo-500" /> Analítica</> : <><SettingsIcon className="w-6 h-6 text-indigo-500" /> Ajustes</>}
               </h2>
             </div>
             
@@ -1051,6 +1085,7 @@ export default function App() {
                   isSuperAdmin={isSuperAdmin} 
                   establishments={establishments} 
                   isDarkMode={isDarkMode}
+                  theme={currentTheme}
                 />
               ) : activeView === 'activity' ? (
                 <motion.div 
@@ -1150,225 +1185,6 @@ export default function App() {
                     </div>
                   )}
                 </motion.div>
-              ) : activeView === 'entry' ? (
-                <motion.div 
-                  key="mobile-entry"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className="space-y-6"
-                >
-                  <div className={cn(
-                    "p-6 rounded-3xl border transition-all",
-                    selectedSlot 
-                      ? (isDarkMode ? "bg-emerald-900/20 border-emerald-500/30" : "bg-emerald-50 border-emerald-100") 
-                      : (isDarkMode ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-100")
-                  )}>
-                    <h2 className={cn(
-                      "font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2",
-                      isDarkMode ? "text-slate-500" : "text-slate-400"
-                    )}>
-                       <Plus className="w-4 h-4" />
-                       Nueva Entrada
-                    </h2>
-                    <form onSubmit={handleEntry} className="space-y-6">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Tipo de Vehículo</label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              setSelectedVehicleType('car');
-                              setSelectedSlot('');
-                            }}
-                            className={cn(
-                              "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all",
-                              selectedVehicleType === 'car' 
-                                ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20" 
-                                : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
-                            )}
-                          >
-                            <Car className="w-6 h-6" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Auto</span>
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              setSelectedVehicleType('motorcycle');
-                              setSelectedSlot('');
-                            }}
-                            className={cn(
-                              "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all",
-                              selectedVehicleType === 'motorcycle' 
-                                ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20" 
-                                : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-50 border-transparent text-slate-400")
-                            )}
-                          >
-                            <MotorcycleIcon className="w-6 h-6" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Moto</span>
-                          </button>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Tipo de Ingreso</label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <button 
-                            type="button"
-                            onClick={() => setSelectedEntryType('daily')}
-                            className={cn(
-                              "flex items-center justify-center gap-2 py-4 rounded-2xl border-2 transition-all font-black text-xs uppercase tracking-widest text-white shadow-lg shadow-blue-500/10",
-                              selectedEntryType === 'daily' 
-                                ? "bg-blue-600 border-blue-500 text-white" 
-                                : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500 opacity-60" : "bg-slate-100 border-transparent text-slate-400 opacity-60")
-                            )}
-                          >
-                            Diario
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => setSelectedEntryType('monthly')}
-                            className={cn(
-                              "flex items-center justify-center gap-2 py-4 rounded-2xl border-2 transition-all font-black text-xs uppercase tracking-widest text-white shadow-lg shadow-emerald-500/10",
-                              selectedEntryType === 'monthly' 
-                                ? "bg-emerald-600 border-emerald-500 text-white" 
-                                : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500 opacity-60" : "bg-slate-100 border-transparent text-slate-400 opacity-60")
-                            )}
-                          >
-                            Abono
-                          </button>
-                        </div>
-                      </div>
-
-                      {selectedEntryType === 'monthly' && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div className="flex items-center justify-between ml-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Seleccionar Abonado</label>
-                            <button 
-                              type="button"
-                              onClick={() => setActiveView('monthly')}
-                              className="text-[9px] font-black text-emerald-500 hover:text-emerald-400 uppercase tracking-widest flex items-center gap-1"
-                            >
-                              <Plus className="w-2.5 h-2.5" /> Nuevo Abono
-                            </button>
-                          </div>
-                          {monthlyPasses.length > 0 ? (
-                            <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                              {monthlyPasses.map(pass => (
-                                <button
-                                  key={pass.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setPlate(pass.plate);
-                                    setSelectedVehicleType(pass.vehicleType);
-                                  }}
-                                  className={cn(
-                                    "flex items-center justify-between p-4 rounded-2xl border-2 transition-all",
-                                    plate === pass.plate 
-                                      ? "bg-emerald-500/10 border-emerald-500 text-emerald-400" 
-                                      : (isDarkMode ? "bg-slate-800 border-transparent text-slate-400 hover:bg-slate-750" : "bg-slate-50 border-transparent text-slate-500 hover:bg-slate-100")
-                                  )}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div className={cn(
-                                      "w-8 h-8 rounded-lg flex items-center justify-center",
-                                      plate === pass.plate ? "bg-emerald-500/20" : (isDarkMode ? "bg-slate-900" : "bg-white")
-                                    )}>
-                                      {pass.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-4 h-4" /> : <Car className="w-4 h-4" />}
-                                    </div>
-                                    <div className="text-left">
-                                      <span className="font-mono font-black block leading-none">{pass.plate}</span>
-                                      <span className="text-[8px] font-bold opacity-60 uppercase">Vence: {format(pass.endDate.toDate(), 'dd/MM')}</span>
-                                    </div>
-                                  </div>
-                                  <CheckCircle2 className={cn("w-5 h-5", plate === pass.plate ? "opacity-100" : "opacity-0")} />
-                                </button>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="p-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl text-center opacity-40">
-                              <p className="text-[10px] font-black uppercase tracking-widest">No hay abonados registrados</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Cochera Asignada</label>
-                        <div className={cn(
-                          "w-full h-16 rounded-2xl flex items-center justify-center font-mono text-2xl font-black border-2 transition-all",
-                          selectedSlot 
-                            ? (isDarkMode ? "border-emerald-500 bg-slate-800 text-emerald-400 shadow-lg shadow-emerald-500/10" : "border-emerald-500 bg-white text-emerald-600 shadow-lg shadow-emerald-500/10")
-                            : (isDarkMode ? "border-dashed border-slate-800 text-slate-700" : "border-dashed border-slate-200 text-slate-300")
-                        )}>
-                          {selectedSlot || "SELECCIONE EN MONITOR"}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2 relative">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Patente del Vehículo</label>
-                        <div className="relative">
-                          <input 
-                            ref={plateInputRef}
-                            type="text" 
-                            value={plate}
-                            onChange={(e) => {
-                              setPlate(e.target.value.toUpperCase());
-                              setShowSuggestions(true);
-                            }}
-                            onFocus={() => setShowSuggestions(true)}
-                            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                            placeholder="PATENTE" 
-                            className={cn(
-                              "w-full px-6 py-5 border rounded-3xl font-mono text-3xl font-black text-center focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all uppercase",
-                              isDarkMode 
-                                ? "bg-slate-800 border-slate-700 text-white placeholder:text-slate-700" 
-                                : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-100"
-                            )}
-                          />
-                          {showSuggestions && plate.length >= 2 && (
-                            <div className={cn(
-                              "absolute left-0 right-0 top-full mt-1 z-[100] rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2",
-                              isDarkMode ? "bg-slate-700 border-slate-600" : "bg-white border-slate-200"
-                            )}>
-                              {allHistoricalPlates
-                                .filter(p => p.toUpperCase().includes(plate.toUpperCase()) && p.toUpperCase() !== plate.toUpperCase())
-                                .slice(0, 5)
-                                .map(s => (
-                                  <button
-                                    key={s}
-                                    type="button"
-                                    onClick={() => {
-                                      setPlate(s);
-                                      setShowSuggestions(false);
-                                    }}
-                                    className={cn(
-                                      "w-full px-6 py-4 text-left font-mono font-black text-xl border-b last:border-b-0 transition-colors uppercase",
-                                      isDarkMode ? "border-slate-600 hover:bg-slate-600 text-white" : "border-slate-50 hover:bg-slate-50 text-slate-900"
-                                    )}
-                                  >
-                                    {s}
-                                  </button>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <button 
-                        disabled={isSubmitting || !plate.trim() || !selectedSlot}
-                        className={cn(
-                          "w-full disabled:opacity-50 text-white font-black py-6 rounded-3xl transition-all shadow-xl flex items-center justify-center gap-3 text-lg tracking-widest",
-                          selectedEntryType === 'monthly' 
-                            ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200/20" 
-                            : "bg-blue-600 hover:bg-blue-700 shadow-blue-200/20"
-                        )}
-                      >
-                        {isSubmitting ? <Activity className="w-6 h-6 animate-spin" /> : <Plus className="w-6 h-6" />}
-                        REGISTRAR
-                      </button>
-                    </form>
-                  </div>
-                </motion.div>
               ) : activeView === 'monthly' ? (
                 <motion.div 
                   key="monthly"
@@ -1380,7 +1196,8 @@ export default function App() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Add Monthly Pass Form */}
                     <div className={cn(
-                      "p-8 rounded-[2.5rem] border shadow-xl transition-colors duration-500",
+                      "p-8 border shadow-xl transition-colors duration-500",
+                      "rounded-lg",
                       isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
                     )}>
                       <h3 className="font-black text-xs uppercase tracking-[0.2em] mb-6 text-emerald-500">Nuevo Abono Mensual</h3>
@@ -1418,10 +1235,12 @@ export default function App() {
                             <input 
                               name="amount"
                               type="number" 
+                              step="1"
                               required
                               placeholder="0" 
                               className={cn(
-                                "w-full pl-10 pr-5 py-4 border-2 rounded-2xl font-bold text-xl focus:outline-none focus:border-emerald-500 transition-all",
+                                "w-full pl-10 pr-5 py-4 border-2 font-bold text-xl focus:outline-none focus:border-emerald-500 transition-all",
+                                "rounded-md",
                                 isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
                               )}
                             />
@@ -1429,7 +1248,10 @@ export default function App() {
                         </div>
                         <button 
                           type="submit"
-                          className="w-full bg-emerald-600 text-white font-black py-5 rounded-3xl transition-all shadow-xl shadow-emerald-100 hover:scale-[1.02] active:scale-95 text-sm tracking-widest"
+                          className={cn(
+                            "w-full bg-emerald-600 text-white font-black py-5 transition-all shadow-xl shadow-emerald-100 hover:scale-[1.02] active:scale-95 text-sm tracking-widest",
+                            "rounded-md"
+                          )}
                         >
                           ACTIVAR ABONO
                         </button>
@@ -1450,7 +1272,8 @@ export default function App() {
                             <div 
                               key={pass.id}
                               className={cn(
-                                "p-5 rounded-2xl border flex items-center justify-between group hover:border-emerald-500/50 transition-all",
+                                "p-5 border flex items-center justify-between group hover:border-emerald-500/50 transition-all",
+                                "rounded-lg",
                                 isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-sm"
                               )}
                             >
@@ -1529,9 +1352,11 @@ export default function App() {
                             <input 
                               name="carRate"
                               type="number"
+                              step="1"
                               defaultValue={settings?.hourlyRate}
                               className={cn(
-                                "w-full pl-10 pr-4 py-4 border rounded-2xl font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "w-full pl-10 pr-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "rounded-md",
                                 isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                               )}
                             />
@@ -1544,9 +1369,11 @@ export default function App() {
                             <input 
                               name="carHalfHourRate"
                               type="number"
+                              step="1"
                               defaultValue={settings?.carHalfHourRate || Math.ceil((settings?.hourlyRate || 1000) / 2)}
                               className={cn(
-                                "w-full pl-10 pr-4 py-4 border rounded-2xl font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "w-full pl-10 pr-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "rounded-md",
                                 isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                               )}
                             />
@@ -1562,9 +1389,11 @@ export default function App() {
                             <input 
                               name="motoDailyRate"
                               type="number"
+                              step="1"
                               defaultValue={settings?.motoDailyRate || settings?.motoHourlyRate}
                               className={cn(
-                                "w-full pl-10 pr-4 py-4 border rounded-2xl font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "w-full pl-10 pr-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "rounded-md",
                                 isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                               )}
                             />
@@ -1580,9 +1409,11 @@ export default function App() {
                             <input 
                               name="monthlyRate"
                               type="number"
+                              step="1"
                               defaultValue={settings?.monthlyRate}
                               className={cn(
-                                "w-full pl-10 pr-4 py-4 border rounded-2xl font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "w-full pl-10 pr-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "rounded-md",
                                 isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                               )}
                             />
@@ -1595,9 +1426,11 @@ export default function App() {
                             <input 
                               name="motoMonthlyRate"
                               type="number"
+                              step="1"
                               defaultValue={settings?.motoMonthlyRate}
                               className={cn(
-                                "w-full pl-10 pr-4 py-4 border rounded-2xl font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "w-full pl-10 pr-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "rounded-md",
                                 isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                               )}
                             />
@@ -1612,9 +1445,11 @@ export default function App() {
                             <input 
                               name="carSlots"
                               type="number"
+                              step="1"
                               defaultValue={settings?.carSlots}
                               className={cn(
-                                "w-full px-4 py-4 border rounded-2xl font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "w-full px-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "rounded-md",
                                 isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                               )}
                             />
@@ -1626,9 +1461,11 @@ export default function App() {
                             <input 
                               name="motoSlots"
                               type="number"
+                              step="1"
                               defaultValue={settings?.motoSlots}
                               className={cn(
-                                "w-full px-4 py-4 border rounded-2xl font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "w-full px-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
+                                "rounded-md",
                                 isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                               )}
                             />
@@ -1639,7 +1476,7 @@ export default function App() {
                       <button 
                         type="submit"
                         className={cn(
-                          "w-full font-bold py-4 rounded-2xl transition-all shadow-lg",
+                          "w-full font-bold py-4 transition-all shadow-lg rounded-md",
                           isDarkMode ? "bg-indigo-600 text-white hover:bg-indigo-500" : "bg-slate-900 text-white hover:bg-slate-800"
                         )}
                       >
@@ -1803,7 +1640,7 @@ export default function App() {
                   <div className="space-y-4">
                     {historySearchTerm && (
                       <div className={cn(
-                        "p-4 rounded-2xl border flex items-center justify-between mb-4",
+                        "p-4 rounded-2xl border flex items-center justify-between mb-4 rounded-lg",
                         isDarkMode ? "bg-indigo-900/20 border-indigo-500/30 text-indigo-300" : "bg-indigo-50 border-indigo-100 text-indigo-600"
                       )}>
                         <div className="flex items-center gap-3">
@@ -1833,22 +1670,23 @@ export default function App() {
 
                         return (
                           <div key={v.id} className={cn(
-                            "border p-4 rounded-2xl flex items-center justify-between transition-all group",
+                            "border p-3 flex items-center justify-between transition-all group",
+                            "rounded-lg",
                             isDarkMode ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-white border-slate-100 hover:border-slate-200 shadow-sm"
                           )}>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3">
                               <div className={cn(
-                                "w-12 h-12 rounded-xl flex items-center justify-center transition-all",
+                                "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
                                 isDarkMode 
                                   ? (isMonthly ? "bg-emerald-900/20 text-emerald-400" : "bg-blue-900/20 text-blue-400") 
                                   : (isMonthly ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600")
                               )}>
-                                {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-6 h-6" /> : <Car className="w-6 h-6" />}
+                                {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-5 h-5" /> : <Car className="w-5 h-5" />}
                               </div>
                               <div>
-                                <div className="flex items-center gap-2 mb-1">
+                                <div className="flex items-center gap-2 mb-0.5">
                                   <h4 className={cn(
-                                    "font-black tracking-widest text-sm relative px-2 py-0.5 rounded shadow-sm inline-block border overflow-hidden transition-colors",
+                                    "font-black tracking-widest text-xs relative px-2 py-0.5 rounded shadow-sm inline-block border overflow-hidden transition-colors",
                                     isDarkMode 
                                       ? (isMonthly ? "bg-emerald-950/40 border-emerald-800/50 text-emerald-400" : "bg-blue-950/40 border-blue-800/50 text-blue-400") 
                                       : (isMonthly ? "bg-emerald-50 border-emerald-100 text-emerald-700" : "bg-blue-50 border-blue-100 text-blue-700")
@@ -1856,13 +1694,13 @@ export default function App() {
                                     <span className="relative z-10">{v.plate}</span>
                                   </h4>
                                   <span className={cn(
-                                    "text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border-none",
+                                    "text-[6px] font-black uppercase tracking-widest px-1 py-0.5 rounded border-none",
                                     isMonthly ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
                                   )}>
                                     {isMonthly ? 'Abono' : 'Diario'}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tight">
+                                <div className="flex items-center gap-2 text-[9px] text-slate-400 font-bold uppercase tracking-tight">
                                   <span>{format(v.entryTime.toDate(), 'HH:mm')}</span>
                                   <span>→</span>
                                   <span>{format(v.exitTime.toDate(), 'HH:mm')}</span>
@@ -1871,9 +1709,37 @@ export default function App() {
                                 </div>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <p className={cn("font-black text-lg", isMonthly ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-blue-400" : "text-blue-600"))}>{formatCurrency(v.totalAmount)}</p>
-                              <p className="text-[10px] text-slate-300 dark:text-slate-600 font-bold uppercase tracking-tighter">{format(v.exitTime.toDate(), 'dd MMM')}</p>
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <p className={cn("font-black text-base", isMonthly ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-blue-400" : "text-blue-600"))}>{formatCurrency(v.totalAmount)}</p>
+                                <p className="text-[9px] text-slate-300 dark:text-slate-600 font-bold uppercase tracking-tighter">{format(v.exitTime.toDate(), 'dd MMM')}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!v.id) return;
+                                  if (confirmDeleteId === v.id) {
+                                    handleDeleteHistory(v.id);
+                                  } else {
+                                    setConfirmDeleteId(v.id);
+                                    setTimeout(() => setConfirmDeleteId(null), 3000);
+                                  }
+                                }}
+                                className={cn(
+                                  "p-2 transition-all rounded-full relative z-[200] flex items-center gap-1",
+                                  confirmDeleteId === v.id 
+                                    ? "bg-rose-500 text-white px-3" 
+                                    : (isDarkMode ? "text-slate-500 hover:text-rose-400 hover:bg-slate-800" : "text-slate-400 hover:text-rose-500 hover:bg-rose-50")
+                                )}
+                                title={confirmDeleteId === v.id ? "Confirmar eliminación" : "Eliminar registro"}
+                              >
+                                {confirmDeleteId === v.id ? (
+                                  <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">¿Borrar?</span>
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
+                              </button>
                             </div>
                           </div>
                         );
@@ -1914,7 +1780,8 @@ export default function App() {
                               handleSlotClick(slotId, vehicle);
                             }}
                             className={cn(
-                              "aspect-[3/4] rounded-xl flex flex-col items-center justify-center gap-1 transition-all border font-mono text-[10px] relative overflow-hidden group hover:scale-[1.02] active:scale-95",
+                              "aspect-[3/4] flex flex-col items-center justify-center gap-1 transition-all border font-mono text-[10px] relative overflow-hidden group hover:scale-[1.02] active:scale-95",
+                              "rounded-sm",
                               vehicle 
                                 ? isOccupiedSelected 
                                   ? (vehicle.entryType === 'monthly' ? "bg-emerald-600 border-emerald-400 text-white ring-4 ring-emerald-500/20 shadow-xl" : "bg-blue-600 border-blue-400 text-white ring-4 ring-blue-500/20 shadow-xl")
@@ -1931,7 +1798,8 @@ export default function App() {
                             <span className={cn("absolute top-1 left-1.5 font-black text-[20px] leading-[21.5px] tracking-tighter z-10", vehicle ? (isOccupiedSelected ? "text-white/20" : (vehicle.entryType === 'monthly' ? "text-emerald-400/30" : "text-blue-400/30")) : "text-slate-400")}>#{slotNum}</span>
                             {vehicle ? (
                                <div className="relative w-full h-full p-2 flex flex-col items-center justify-center">
-                                 <motion.div layoutId={`car-body-${vehicle.id}`} className={cn("absolute inset-x-2 inset-y-2 rounded-xl shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden", 
+                                 <motion.div layoutId={`car-body-${vehicle.id}`} className={cn("absolute inset-x-2 inset-y-2 shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden", 
+                                   "rounded-lg",
                                    isOccupiedSelected 
                                      ? "bg-gradient-to-br from-white to-slate-200"
                                      : (isDarkMode 
@@ -1987,7 +1855,8 @@ export default function App() {
                               handleSlotClick(slotId, vehicle);
                             }}
                             className={cn(
-                              "aspect-[3/4] rounded-xl flex flex-col items-center justify-center gap-1 transition-all border font-mono text-[10px] relative overflow-hidden group hover:scale-[1.02] active:scale-95",
+                              "aspect-[3/4] flex flex-col items-center justify-center gap-1 transition-all border font-mono text-[10px] relative overflow-hidden group hover:scale-[1.02] active:scale-95",
+                              "rounded-sm",
                               vehicle 
                                 ? isOccupiedSelected 
                                   ? (vehicle.entryType === 'monthly' ? "bg-emerald-600 border-emerald-400 text-white ring-4 ring-emerald-500/20 shadow-xl" : "bg-blue-600 border-blue-400 text-white ring-4 ring-blue-500/20 shadow-xl")
@@ -2008,7 +1877,8 @@ export default function App() {
                                  <motion.div 
                                    layoutId={`car-body-${vehicle.id}`}
                                    className={cn(
-                                     "absolute w-8 h-5 rounded-full shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden",
+                                     "absolute w-8 h-5 shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden",
+                                     "rounded-lg",
                                      isOccupiedSelected 
                                        ? "bg-gradient-to-br from-white to-slate-200"
                                        : (isDarkMode 
@@ -2171,6 +2041,258 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Mobile Bottom Nav */}
+      <div className="md:hidden fixed bottom-6 left-6 right-6 z-[60] flex items-center justify-between p-2 bg-slate-900/90 dark:bg-slate-800/90 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl">
+        {[
+          { id: 'monitor', icon: Activity, label: 'Inicio' },
+          { id: 'history', icon: HistoryIcon, label: 'Historial' },
+          { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
+        ].map((v) => (
+          <button 
+            key={v.id}
+            onClick={() => setActiveView(v.id as any)}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center py-2 transition-all gap-1",
+              activeView === v.id ? "text-indigo-400" : "text-slate-500"
+            )}
+          >
+            <v.icon className={cn("w-5 h-5", activeView === v.id ? "scale-110" : "")} />
+            <span className="text-[7px] font-black uppercase tracking-widest">{v.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Entry Modal */}
+      <AnimatePresence>
+        {selectedSlot && !confirmingExitVehicle && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedSlot("")}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-sm shadow-2xl overflow-hidden transition-colors duration-500 max-h-[95vh] flex flex-col rounded-xl",
+                isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-white border border-slate-100"
+              )}
+            >
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500" />
+              
+              <div className="p-6 flex-1 overflow-y-auto space-y-6">
+                <div className="flex flex-col items-center text-center gap-4">
+                  <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 rounded-3xl flex items-center justify-center">
+                    <Plus className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <h3 className="text-xl font-black tracking-tight uppercase flex items-center gap-2 justify-center">
+                      Nueva Entrada
+                      <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </h3>
+                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Cochera Asignada: <span className={isDarkMode ? "text-blue-400" : "text-blue-600"}>{selectedSlot}</span></p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleEntry} className="space-y-6">
+                  {/* Vehicle Type Selection */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedVehicleType('car')}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all group",
+                        selectedVehicleType === 'car' 
+                          ? (isDarkMode ? "bg-blue-500/10 border-blue-500 text-blue-400" : "bg-blue-50 border-blue-500 text-blue-600")
+                          : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-100 border-transparent text-slate-400")
+                      )}
+                    >
+                      <Car className={cn("w-6 h-6 transition-transform group-active:scale-90", selectedVehicleType === 'car' ? "animate-pulse" : "")} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Auto</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedVehicleType('motorcycle')}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all group",
+                        selectedVehicleType === 'motorcycle' 
+                          ? (isDarkMode ? "bg-blue-500/10 border-blue-500 text-blue-400" : "bg-blue-50 border-blue-500 text-blue-600")
+                          : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-100 border-transparent text-slate-400")
+                      )}
+                    >
+                      <MotorcycleIcon className={cn("w-6 h-6 transition-transform group-active:scale-90", selectedVehicleType === 'motorcycle' ? "animate-pulse" : "")} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Moto</span>
+                    </button>
+                  </div>
+
+                  {/* Entry Type Toggle */}
+                  <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-[1.25rem] gap-1">
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedEntryType('daily')}
+                      className={cn(
+                        "flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                        selectedEntryType === 'daily' 
+                          ? "bg-blue-600 text-white shadow-lg" 
+                          : "text-slate-400 hover:text-slate-600"
+                      )}
+                    >
+                      DIARIO
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedEntryType('monthly')}
+                      className={cn(
+                        "flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                        selectedEntryType === 'monthly' 
+                          ? "bg-emerald-600 text-white shadow-lg" 
+                          : "text-slate-400 hover:text-slate-600"
+                      )}
+                    >
+                      ABONADO
+                    </button>
+                  </div>
+
+                  {selectedEntryType === 'monthly' && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="flex items-center justify-between ml-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        <span>Abonado</span>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setActiveView('monthly');
+                            setSelectedSlot('');
+                          }}
+                          className="text-emerald-500 hover:underline"
+                        >
+                          + Nuevo
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-1 scrollbar-hide">
+                        {monthlyPasses.length > 0 ? (
+                          monthlyPasses.map(pass => (
+                            <button
+                              key={pass.id}
+                              type="button"
+                              onClick={() => {
+                                setPlate(pass.plate);
+                                setSelectedVehicleType(pass.vehicleType);
+                              }}
+                              className={cn(
+                                "flex items-center justify-between p-4 rounded-2xl border-2 transition-all",
+                                plate === pass.plate 
+                                  ? "bg-emerald-500/10 border-emerald-500 text-emerald-400" 
+                                  : (isDarkMode ? "bg-slate-800 border-transparent text-slate-400" : "bg-slate-50 border-transparent text-slate-500")
+                              )}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="font-mono font-black text-lg">{pass.plate}</span>
+                              </div>
+                              <CheckCircle2 className={cn("w-5 h-5 transition-opacity", plate === pass.plate ? "opacity-100" : "opacity-0")} />
+                            </button>
+                          ))
+                        ) : (
+                          <div className="p-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-center opacity-40">
+                            <p className="text-[10px] font-black uppercase tracking-widest">No hay abonados</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Plate Input */}
+                  <div className="space-y-2 relative">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Patente</label>
+                    <div className="relative">
+                      <input 
+                        ref={plateInputRef}
+                        type="text" 
+                        value={plate}
+                        onChange={(e) => {
+                          setPlate(e.target.value.toUpperCase());
+                          setShowSuggestions(true);
+                        }}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                        placeholder="PATENTE" 
+                        className={cn(
+                          "w-full px-6 py-5 border font-mono text-3xl font-black text-center focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all uppercase",
+                          "rounded-md",
+                          isDarkMode 
+                            ? "bg-slate-800 border-slate-700 text-white placeholder:text-slate-700" 
+                            : "bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-200"
+                        )}
+                      />
+                      {showSuggestions && plate.length >= 2 && (
+                        <div className={cn(
+                          "absolute left-0 right-0 top-full mt-1 z-[100] rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2 max-h-40 overflow-y-auto",
+                          isDarkMode ? "bg-slate-700 border-slate-600" : "bg-white border-slate-200"
+                        )}>
+                          {allHistoricalPlates
+                            .filter(p => p.toUpperCase().includes(plate.toUpperCase()) && p.toUpperCase() !== plate.toUpperCase())
+                            .slice(0, 5)
+                            .map(s => (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => {
+                                  setPlate(s);
+                                  setShowSuggestions(false);
+                                }}
+                                className={cn(
+                                  "w-full px-6 py-4 text-left font-mono font-black text-xl border-b last:border-b-0 transition-colors uppercase",
+                                  isDarkMode ? "border-slate-600 hover:bg-slate-600 text-white" : "border-slate-50 hover:bg-slate-50 text-slate-900"
+                                )}
+                              >
+                                {s}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </form>
+              </div>
+
+              <div className="p-6 pt-0 space-y-2">
+                <button 
+                  disabled={isSubmitting || !plate.trim() || !selectedSlot}
+                  onClick={handleEntry}
+                  className={cn(
+                    "w-full py-5 text-white font-black uppercase tracking-widest shadow-xl transition-all disabled:opacity-50 active:scale-95 flex items-center justify-center gap-3",
+                    "rounded-md",
+                    selectedEntryType === 'monthly'
+                      ? "bg-emerald-500 shadow-emerald-500/20 hover:bg-emerald-600"
+                      : "bg-blue-600 shadow-blue-600/20 hover:bg-blue-700"
+                  )}
+                >
+                  {isSubmitting ? "REGISTRANDO..." : (
+                    <>
+                      <Plus className="w-5 h-5" />
+                      Ingresar Vehículo
+                    </>
+                  )}
+                </button>
+                <button 
+                  disabled={isSubmitting}
+                  onClick={() => setSelectedSlot("")}
+                  className="w-full py-3 text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:text-rose-500 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Confirmation Modal */}
       <AnimatePresence>
         {confirmingExitVehicle && (
@@ -2187,91 +2309,109 @@ export default function App() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className={cn(
-                "relative w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 overflow-hidden transition-colors duration-500",
+                "relative w-full max-w-sm shadow-2xl overflow-hidden transition-colors duration-500 max-h-[95vh] flex flex-col rounded-xl",
                 isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-white border border-slate-100"
               )}
             >
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500" />
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-500 via-indigo-500 to-emerald-500" />
               
-              <div className="flex flex-col items-center text-center gap-6">
-                <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center">
-                  <CheckCircle2 className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                
-                <div className="space-y-1">
-                  <h3 className="text-xl font-black tracking-tight">Confirmar Salida</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">¿Desea finalizar la sesión del vehículo?</p>
+              <div className="p-6 flex-1 overflow-y-auto space-y-6">
+                <div className="flex flex-col items-center text-center gap-4 h-[121px] mb-5">
+                  <div className="w-[58px] h-[51px] bg-emerald-50 dark:bg-emerald-900/30 rounded-3xl flex items-center justify-center">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-black tracking-tight uppercase mb-[2px]">Confirmar Cobro</h3>
+                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Finalizar sesión de parking</p>
+                  </div>
                 </div>
                 
                 <div className={cn(
-                  "w-full p-6 rounded-3xl space-y-3",
-                  isDarkMode ? "bg-slate-800" : "bg-slate-50"
+                  "w-full px-6 pt-[18px] pb-5 rounded-3xl space-y-5 h-[304px]",
+                  isDarkMode ? "bg-slate-800" : "bg-slate-50 border border-slate-100"
                 )}>
-                  <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
-                    <span>Patente</span>
-                    <span>Importe a Cobrar</span>
-                  </div>
-                  <div className="flex justify-between items-center gap-4">
-                    <span className="text-2xl font-black font-mono tracking-tighter shrink-0">{confirmingExitVehicle.plate}</span>
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-emerald-500">$</span>
-                      <input 
-                        type="number"
-                        value={editableAmount}
-                        onChange={(e) => setEditableAmount(Number(e.target.value))}
-                        className={cn(
-                          "w-full pl-7 pr-3 py-3 rounded-xl border-2 text-right text-2xl font-black focus:outline-none transition-all",
-                          isDarkMode 
-                            ? "bg-slate-900 border-slate-700 text-emerald-400 focus:border-emerald-500/50" 
-                            : "bg-white border-slate-200 text-emerald-600 focus:border-emerald-500/50"
-                        )}
-                      />
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Patente</span>
+                      <div className={cn(
+                        "h-[60px] p-4 rounded-2xl border flex items-center justify-center",
+                        isDarkMode ? "bg-slate-900/50 border-slate-700" : "bg-white border-slate-200 shadow-sm"
+                      )}>
+                        <span className="text-3xl font-black font-mono tracking-wider">{confirmingExitVehicle.plate}</span>
+                      </div>
                     </div>
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase text-right opacity-60">Calculado: {formatCurrency(calculateAmount(confirmingExitVehicle))}</p>
-                  
-                  <div className="pt-2 mt-2 border-t border-dashed border-slate-200 dark:border-slate-700 space-y-2">
-                    <div className="flex justify-between text-[10px] uppercase tracking-tighter">
-                      <span className="text-slate-400 font-bold">Ingreso:</span>
-                      <span className="text-slate-500 font-black">{confirmingExitVehicle.entryTime ? format(confirmingExitVehicle.entryTime.toDate(), 'HH:mm') : '--:--'}</span>
+                    
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Importe a Cobrar</span>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-emerald-500 text-xl">$</span>
+                        <input 
+                          type="number"
+                          step="1"
+                          value={editableAmount}
+                          onChange={(e) => setEditableAmount(Number(e.target.value))}
+                          className={cn(
+                            "w-full h-[60px] pl-10 pr-4 py-4 rounded-2xl border-2 text-right text-4xl font-black focus:outline-none transition-all",
+                            isDarkMode 
+                              ? "bg-slate-900 border-slate-700 text-emerald-400 focus:border-emerald-500/50" 
+                              : "bg-white border-slate-200 text-emerald-600 focus:border-emerald-500/50"
+                          )}
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase text-right opacity-60">Sugerido: {formatCurrency(calculateAmount(confirmingExitVehicle))}</p>
                     </div>
-                    <div className="flex justify-between text-[10px] uppercase tracking-tighter">
-                      <span className="text-slate-400 font-bold">Salida (Ahora):</span>
-                      <span className="text-slate-500 font-black">{format(new Date(), 'HH:mm')}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[10px] uppercase tracking-tighter">
-                      <span className="text-slate-400 font-bold">Tiempo Total:</span>
-                      <span className="text-[#36cc10] font-black text-[15px] leading-[16px] border border-solid border-[#36cc10]/30 px-2 py-0.5 rounded-lg bg-[#36cc10]/5">
-                        {(() => {
-                          const now = new Date();
-                          const entry = confirmingExitVehicle.entryTime?.toDate();
-                          if (!entry) return '--';
-                          const diffMs = now.getTime() - entry.getTime();
-                          const diffHrs = Math.floor(diffMs / 3600000);
-                          const diffMins = Math.floor((diffMs % 3600000) / 60000);
-                          return `${diffHrs}h ${diffMins}m`;
-                        })()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="flex flex-col w-full gap-3">
-                  <button 
-                    disabled={isSubmitting}
-                    onClick={confirmExit}
-                    className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black tracking-widest shadow-xl shadow-indigo-200 dark:shadow-none hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    {isSubmitting ? "PROCESANDO..." : "CONFIRMAR PAGO"}
-                  </button>
-                  <button 
-                    disabled={isSubmitting}
-                    onClick={() => setConfirmingExitVehicle(null)}
-                    className="w-full py-4 text-slate-400 dark:text-slate-500 font-bold text-xs uppercase tracking-widest hover:text-slate-600 transition-colors"
-                  >
-                    Cancelar
-                  </button>
+                    <div className="pt-4 border-t border-dashed border-slate-200 dark:border-slate-700 grid grid-cols-3 gap-2">
+                      <div className="flex flex-col items-center">
+                        <span className="text-[8px] font-black text-slate-400 uppercase">Ingreso</span>
+                        <span className="text-[15px] font-black text-slate-600 dark:text-slate-300">
+                          {confirmingExitVehicle.entryTime ? format(confirmingExitVehicle.entryTime.toDate(), 'HH:mm') : '--:--'}
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-[8px] font-black text-slate-400 uppercase">Salida</span>
+                        <span className="text-[15px] font-black text-slate-600 dark:text-slate-300">
+                          {format(new Date(), 'HH:mm')}
+                        </span>
+                      </div>
+                      <div className="flex flex-col items-center p-1 rounded-lg bg-emerald-500/5">
+                        <span className="text-[8px] font-black text-emerald-500 uppercase">Total</span>
+                        <span className="text-[15px] font-black text-[#fad947]">
+                          {(() => {
+                            const now = new Date();
+                            const entry = confirmingExitVehicle.entryTime?.toDate();
+                            if (!entry) return '--';
+                            const diffMs = now.getTime() - entry.getTime();
+                            const diffHrs = Math.floor(diffMs / 3600000);
+                            const diffMins = Math.floor((diffMs % 3600000) / 60000);
+                            return `${diffHrs}h ${diffMins}m`;
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              <div className="p-6 pt-0 space-y-2">
+                <button 
+                  disabled={isSubmitting}
+                  onClick={confirmExit}
+                  className={cn(
+                    "w-full py-5 bg-emerald-500 text-white font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all disabled:opacity-50 active:scale-95",
+                    "rounded-md"
+                  )}
+                >
+                  {isSubmitting ? "PROCESANDO..." : "COBRAR AHORA"}
+                </button>
+                <button 
+                  disabled={isSubmitting}
+                  onClick={() => setConfirmingExitVehicle(null)}
+                  className="w-full py-3 text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-widest hover:text-rose-500 transition-colors"
+                >
+                  Cancelar
+                </button>
               </div>
             </motion.div>
           </div>

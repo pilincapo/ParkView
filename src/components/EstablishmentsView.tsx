@@ -118,11 +118,11 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         {/* Create Form (Super Admin or any user if enabled) */}
         <div className={cn(
-          "p-8 rounded-[2.5rem] border shadow-xl h-fit",
+          "p-8 border shadow-xl h-fit rounded-lg",
           isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
         )}>
           <div className="flex items-center gap-3 mb-6">
-             <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+             <div className={cn("w-10 h-10 bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200 rounded-sm")}>
                 <Plus className="w-6 h-6" />
              </div>
              <h3 className="font-black text-xs uppercase tracking-widest text-slate-400">Nueva Cochera</h3>
@@ -136,7 +136,7 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
                 onChange={(e) => setNewEstName(e.target.value)}
                 placeholder="Ej. Cochera Central"
                 className={cn(
-                  "w-full px-5 py-4 rounded-2xl border-2 font-bold focus:outline-none focus:border-indigo-500 transition-all",
+                  "w-full px-5 py-4 border-2 font-bold focus:outline-none focus:border-indigo-500 transition-all rounded-md",
                   isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
                 )}
               />
@@ -148,16 +148,16 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
                 onChange={(e) => setNewEstAddress(e.target.value)}
                 placeholder="Ej. Av. Corrientes 1234"
                 className={cn(
-                  "w-full px-5 py-4 rounded-2xl border-2 font-bold focus:outline-none focus:border-indigo-500 transition-all",
+                  "w-full px-5 py-4 border-2 font-bold focus:outline-none focus:border-indigo-500 transition-all rounded-md",
                   isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
                 )}
               />
             </div>
             <button 
               disabled={isCreating || !newEstName || !newEstAddress}
-              className="w-full bg-indigo-600 text-white font-black py-5 rounded-3xl transition-all shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 text-xs tracking-widest disabled:opacity-50"
+              className={cn("w-full bg-indigo-600 text-white font-black py-5 transition-all shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 text-xs tracking-widest disabled:opacity-50 rounded-md")}
             >
-              CREAR ESTABLECIMIENTO
+              CREAR COCHERA
             </button>
           </form>
         </div>
@@ -170,13 +170,13 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
               <div 
                 key={est.id}
                 className={cn(
-                  "p-6 rounded-3xl border flex flex-col gap-6 shadow-sm hover:shadow-md transition-all group",
+                  "p-6 border flex flex-col gap-6 shadow-sm hover:shadow-md transition-all group rounded-lg",
                   isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
                 )}
               >
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-lg overflow-hidden relative">
+                    <div className={cn("w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-lg overflow-hidden relative rounded-sm")}>
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.2),transparent)]" />
                       <StylizedLetterA className="w-8 h-8" />
                     </div>
@@ -209,7 +209,9 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
                   
                   <button 
                     onClick={() => setManagingMembersId(est.id || null)}
-                    className="flex items-center gap-2 text-[10px] font-black text-indigo-600 hover:text-indigo-500 uppercase tracking-widest transition-colors"
+                    className={cn(
+                      "flex items-center gap-2 text-[10px] font-black text-indigo-600 hover:text-indigo-500 uppercase tracking-widest transition-colors p-2 rounded-md"
+                    )}
                   >
                     <Users className="w-3.5 h-3.5" />
                     Gestionar Usuarios
@@ -230,14 +232,14 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
             onClick={() => setManagingMembersId(null)}
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
           />
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            className={cn(
-              "relative w-full max-w-lg rounded-[2.5rem] border shadow-2xl p-8 md:p-10",
-              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
-            )}
-          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className={cn(
+                "relative w-full max-w-lg border shadow-2xl p-8 md:p-10 rounded-xl",
+                isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+              )}
+            >
             <div className="flex justify-between items-start mb-8">
               <div>
                 <h3 className="text-2xl font-black mb-1">Personal de {currentManagingEst.name}</h3>
@@ -257,17 +259,17 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email del Personal</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    type="email"
-                    value={newMemberEmail}
-                    onChange={(e) => setNewMemberEmail(e.target.value)}
-                    placeholder="empleado@cochera.com"
-                    required
-                    className={cn(
-                      "w-full pl-11 pr-4 py-3 rounded-xl border-2 font-bold text-sm focus:outline-none focus:border-indigo-500 transition-all",
-                      isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
-                    )}
-                  />
+                    <input 
+                      type="email"
+                      value={newMemberEmail}
+                      onChange={(e) => setNewMemberEmail(e.target.value)}
+                      placeholder="empleado@cochera.com"
+                      required
+                      className={cn(
+                        "w-full pl-11 pr-4 py-3 border-2 font-bold text-sm focus:outline-none focus:border-indigo-500 transition-all rounded-md",
+                        isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
+                      )}
+                    />
                 </div>
               </div>
 
@@ -283,7 +285,7 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
                     required
                     minLength={6}
                     className={cn(
-                      "w-full pl-11 pr-4 py-3 rounded-xl border-2 font-bold text-sm focus:outline-none focus:border-indigo-500 transition-all",
+                      "w-full pl-11 pr-4 py-3 border-2 font-bold text-sm focus:outline-none focus:border-indigo-500 transition-all rounded-md",
                       isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
                     )}
                   />
@@ -300,7 +302,9 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
               <button 
                 type="submit"
                 disabled={isAddingMember || !newMemberEmail || !newMemberPassword}
-                className="w-full bg-indigo-600 text-white px-6 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 disabled:opacity-50 transition-all"
+                className={cn(
+                  "w-full bg-indigo-600 text-white px-6 py-4 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 disabled:opacity-50 transition-all rounded-md"
+                )}
               >
                 {isAddingMember ? 'CREANDO...' : 'REGISTRAR Y AÑADIR'}
               </button>
@@ -341,7 +345,7 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
             
             <button 
               onClick={() => setManagingMembersId(null)}
-              className="w-full mt-10 bg-slate-900 dark:bg-slate-800 text-white font-black py-4 rounded-2xl tracking-widest text-xs"
+              className={cn("w-full mt-10 bg-slate-900 dark:bg-slate-800 text-white font-black py-4 tracking-widest text-xs rounded-md")}
             >
               LISTO
             </button>

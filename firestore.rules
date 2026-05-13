@@ -132,7 +132,7 @@ service cloud.firestore {
                        incoming().diff(existing()).affectedKeys().hasOnly(['plate', 'slotId']))
                     );
 
-      allow delete: if false; 
+      allow delete: if isAuthorizedOperator(existing().establishmentId); 
     }
 
     match /monthlyPasses/{passId} {

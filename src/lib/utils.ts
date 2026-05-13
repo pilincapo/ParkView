@@ -8,6 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 export function formatCurrency(amount: number) {
   return new Intl.NumberFormat('es-AR', {
     style: 'currency',
-    currency: 'ARS', // Defaulting to ARS but could be dynamic
+    currency: 'ARS',
+    maximumFractionDigits: 0,
   }).format(amount);
 }
