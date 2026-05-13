@@ -79,6 +79,8 @@ export default function App() {
   });
   const [activeView, setActiveView] = useState<'monitor' | 'activity' | 'history' | 'reports' | 'settings' | 'monthly' | 'establishments' | 'help'>('monitor');
   const [plate, setPlate] = useState('');
+  const [plateError, setPlateError] = useState<string | null>(null);
+  const [plateErrorMonthly, setPlateErrorMonthly] = useState<string | null>(null);
   const [selectedVehicleType, setSelectedVehicleType] = useState<'car' | 'motorcycle'>('car');
   const [selectedEntryType, setSelectedEntryType] = useState<'daily' | 'monthly'>('daily');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -337,6 +339,14 @@ export default function App() {
     e.preventDefault();
     if (!user || !plate.trim() || !selectedSlot || !selectedEstId) return;
 
+    // Validation: Plate length between 6 and 8
+    const cleanPlate = plate.trim().toUpperCase();
+    if (cleanPlate.length < 6 || cleanPlate.length > 8) {
+      setPlateError('La patente debe tener entre 6 y 8 caracteres');
+      return;
+    }
+    setPlateError(null);
+
     // Check if slot is already occupied
     const occupiedVehicle = activeVehicles.find(v => v.slotId === selectedSlot);
     if (occupiedVehicle) {
@@ -382,11 +392,18 @@ export default function App() {
     e.preventDefault();
     if (!user || !selectedEstId) return;
     const formData = new FormData(e.currentTarget as HTMLFormElement);
-    const plateVal = formData.get('plate')?.toString().toUpperCase();
+    const plateVal = formData.get('plate')?.toString().toUpperCase() || '';
     const type = formData.get('vehicleType')?.toString() as 'car' | 'motorcycle';
     const amount = Number(formData.get('amount'));
     
     if (!plateVal || !type) return;
+
+    // Validation: Plate length between 6 and 8
+    if (plateVal.length < 6 || plateVal.length > 8) {
+      setPlateErrorMonthly('La patente debe tener entre 6 y 8 caracteres');
+      return;
+    }
+    setPlateErrorMonthly(null);
 
     // Check if vehicle already has an active monthly pass
     if (monthlyPasses.some(p => p.plate === plateVal)) {
@@ -799,6 +816,19 @@ export default function App() {
             </div>
 
             <button
+              onClick={() => setActiveView('help')}
+              className={cn(
+                "p-2.5 rounded-xl transition-all border group relative",
+                activeView === 'help'
+                  ? (isDarkMode ? "bg-indigo-600/20 border-indigo-500/50 text-indigo-400" : "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm")
+                  : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-400 hover:text-indigo-400" : "bg-white border-slate-100 text-slate-400 hover:text-indigo-600 shadow-sm")
+              )}
+              title="Guía de Ayuda"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
+
+            <button
               onClick={() => setIsDarkMode(!isDarkMode)}
               className={cn(
                 "p-2.5 rounded-xl transition-all border group relative",
@@ -1049,11 +1079,24 @@ export default function App() {
                             type="text" 
                             required
                             placeholder="ABC-123" 
+                            onChange={(e) => {
+                              if (e.target.value.length >= 6 && e.target.value.length <= 8) {
+                                setPlateErrorMonthly(null);
+                              }
+                            }}
                             className={cn(
-                              "w-full px-5 py-4 border-2 rounded-2xl font-mono text-xl font-black focus:outline-none focus:border-emerald-500 transition-all uppercase",
+                              "w-full px-5 py-4 border-2 rounded-2xl font-mono text-xl font-black focus:outline-none transition-all uppercase",
+                              plateErrorMonthly 
+                                ? "border-rose-500" 
+                                : "focus:border-emerald-500",
                               isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
                             )}
                           />
+                          {plateErrorMonthly && (
+                            <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest mt-1 ml-1">
+                              {plateErrorMonthly}
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Vehículo</label>
@@ -1497,16 +1540,33 @@ export default function App() {
                       <div className="mt-8 rounded-2xl border border-slate-200/10 overflow-hidden bg-slate-950/50 p-4">
                         <div className="aspect-video flex items-center justify-center bg-slate-800 rounded-xl relative">
                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-transparent" />
-                           <div className="grid grid-cols-3 gap-2 w-full p-4 opacity-40">
-                             {[1,2,3,4,5,6].map(i => <div key={i} className="h-8 rounded bg-slate-700" />)}
-                           </div>
-                           <motion.div 
-                             animate={{ y: [0, -10, 0], scale: [1, 1.1, 1] }}
-                             transition={{ duration: 2, repeat: Infinity }}
-                             className="z-20 text-indigo-400"
-                           >
-                             <MousePointer2 className="w-12 h-12" />
-                           </motion.div>
+                           {/* Simplified App UI via SVG */}
+                           <svg className="w-full h-full p-4" viewBox="0 0 200 120">
+                             <rect x="10" y="10" width="180" height="100" rx="4" fill="currentColor" className="text-slate-900" />
+                             {/* Parking Grid */}
+                             <g opacity="0.3">
+                               {[0, 1, 2].map(r => [0, 1, 2, 3].map(c => (
+                                 <rect key={`${r}-${c}`} x={25 + c*40} y={25 + r*30} width="30" height="20" rx="2" fill="currentColor" className="text-slate-700" />
+                               )))}
+                             </g>
+                             {/* Highlighted Slot */}
+                             <motion.rect 
+                               initial={{ opacity: 0.3 }}
+                               animate={{ opacity: [0.3, 1, 0.3] }}
+                               transition={{ duration: 2, repeat: Infinity }}
+                               x="65" y="55" width="30" height="20" rx="2" fill="currentColor" className="text-indigo-500" 
+                             />
+                             {/* Cursor */}
+                             <motion.g
+                               animate={{ 
+                                 x: [20, 75, 20], 
+                                 y: [20, 60, 20] 
+                               }}
+                               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                             >
+                               <MousePointer2 className="w-8 h-8 text-white drop-shadow-lg" />
+                             </motion.g>
+                           </svg>
                         </div>
                       </div>
                     </div>
@@ -1529,15 +1589,22 @@ export default function App() {
                       <div className="mt-8 rounded-2xl border border-slate-200/10 overflow-hidden bg-slate-950/50 p-4">
                         <div className="aspect-video flex items-center justify-center bg-slate-800 rounded-xl relative">
                            <div className="absolute inset-0 bg-gradient-to-br from-rose-500/20 to-transparent" />
-                           <div className="w-2/3 h-1/2 rounded-xl bg-slate-700/50 border border-slate-600 flex items-center justify-center gap-4 px-4">
-                              <div className="flex-1 space-y-2">
-                                <div className="h-2 w-12 bg-slate-500 rounded" />
-                                <div className="h-3 w-20 bg-slate-400 rounded" />
-                              </div>
-                              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                              </div>
-                           </div>
+                           {/* Simplified App UI via SVG for Exit */}
+                           <svg className="w-full h-full p-4" viewBox="0 0 200 120">
+                             <rect x="10" y="10" width="180" height="100" rx="4" fill="currentColor" className="text-slate-900" />
+                             {/* Payment Modal Mockup */}
+                             <motion.g
+                               initial={{ opacity: 0, y: 10 }}
+                               animate={{ opacity: 1, y: 0 }}
+                               transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse" }}
+                             >
+                               <rect x="50" y="25" width="100" height="70" rx="6" fill="currentColor" className="text-slate-800" stroke={isDarkMode ? "#334155" : "#e2e8f0"} strokeWidth="1" />
+                               <rect x="70" y="40" width="60" height="6" rx="2" fill="currentColor" className="text-slate-600" />
+                               <circle cx="100" cy="60" r="10" fill="currentColor" className="text-emerald-500/20" />
+                               <path d="M95 60 l3 3 l6 -6" stroke="#10b981" strokeWidth="2" fill="none" />
+                               <rect x="75" y="80" width="50" height="8" rx="2" fill="currentColor" className="text-emerald-600" />
+                             </motion.g>
+                           </svg>
                         </div>
                       </div>
                     </div>
@@ -2141,20 +2208,32 @@ export default function App() {
                         type="text" 
                         value={plate}
                         onChange={(e) => {
-                          setPlate(e.target.value.toUpperCase());
+                          const val = e.target.value.toUpperCase();
+                          if (val.length <= 8) {
+                            setPlate(val);
+                            if (val.length >= 6 && val.length <= 8) setPlateError(null);
+                          }
                           setShowSuggestions(true);
                         }}
                         onFocus={() => setShowSuggestions(true)}
                         onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                         placeholder="PATENTE" 
                         className={cn(
-                          "w-full px-6 py-5 border font-mono text-3xl font-black text-center focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all uppercase",
+                          "w-full px-6 py-5 border font-mono text-3xl font-black text-center focus:outline-none focus:ring-4 transition-all uppercase",
                           "rounded-md",
+                          plateError 
+                            ? "border-rose-500 ring-rose-500/10" 
+                            : "focus:ring-blue-500/10 focus:border-blue-500",
                           isDarkMode 
                             ? "bg-slate-800 border-slate-700 text-white placeholder:text-slate-700" 
                             : "bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-200"
                         )}
                       />
+                      {plateError && (
+                        <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest mt-2 text-center animate-in fade-in slide-in-from-top-1">
+                          {plateError}
+                        </p>
+                      )}
                       {showSuggestions && plate.length >= 2 && (
                         <div className={cn(
                           "absolute left-0 right-0 top-full mt-1 z-[100] rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2 max-h-40 overflow-y-auto",
