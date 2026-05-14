@@ -1,0 +1,17 @@
+{
+  "name": "CocheraFlow AR",
+  "short_name": "CocheraFlow",
+  "description": "Sistema Profesional de Gestión de Estacionamiento",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2830/2830284.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

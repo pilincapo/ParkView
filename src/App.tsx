@@ -89,7 +89,6 @@ export default function App() {
   const [duplicateVehicleAlert, setDuplicateVehicleAlert] = useState<{ plate: string; type: 'active' | 'monthly' } | null>(null);
   const [confirmingExitVehicle, setConfirmingExitVehicle] = useState<Vehicle | null>(null);
   const [editableAmount, setEditableAmount] = useState<number>(0);
-  const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [monthlyPasses, setMonthlyPasses] = useState<any[]>([]);
   const [selectedHistoryVehicle, setSelectedHistoryVehicle] = useState<Vehicle | null>(null);
   const [historyVehicleToDelete, setHistoryVehicleToDelete] = useState<Vehicle | null>(null);
@@ -877,7 +876,7 @@ export default function App() {
                 {activeView === 'monitor' ? <><Building2 className="w-6 h-6 text-indigo-500" /> Cocheras</> : 
                  activeView === 'activity' ? <><Activity className="w-6 h-6 text-indigo-500" /> Sesiones Activas</> :
                  activeView === 'history' ? <><HistoryIcon className="w-6 h-6 text-indigo-500" /> Historial</> : 
-                 activeView === 'reports' ? <><Search className="w-6 h-6 text-indigo-500" /> Analítica</> : 
+                 activeView === 'reports' ? <><Activity className="w-6 h-6 text-indigo-500" /> Analítica</> : 
                  activeView === 'help' ? <><HelpCircle className="w-6 h-6 text-indigo-500" /> Guía de Ayuda</> :
                  activeView === 'settings' ? <><SettingsIcon className="w-6 h-6 text-indigo-500" /> Ajustes</> : <><Users className="w-6 h-6 text-indigo-500" /> Administración</>}
                 <svg className="absolute -bottom-1 left-0 w-full h-1 overflow-visible opacity-50" viewBox="0 0 100 4" preserveAspectRatio="none">
@@ -892,27 +891,7 @@ export default function App() {
               </h2>
             </div>
             
-              <div className="flex items-center gap-1">
-                <div className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all",
-                  isDarkMode ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-100"
-                )}>
-                  <Search className="w-3.5 h-3.5 text-slate-400" />
-                  <input 
-                    type="text"
-                    value={historySearchTerm}
-                    onChange={(e) => setHistorySearchTerm(e.target.value.toUpperCase())}
-                    placeholder="BUSCAR PATENTE..."
-                    className="bg-transparent border-none outline-none text-[10px] font-black w-24 text-slate-500 placeholder:text-slate-300"
-                  />
-                  {historySearchTerm && (
-                    <button onClick={() => setHistorySearchTerm('')}>
-                      <XCircle className="w-3.5 h-3.5 text-slate-300 hover:text-red-400" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="hidden sm:flex gap-4 ml-auto">
+            <div className="hidden sm:flex gap-4 ml-auto">
               <div className="flex items-center gap-2 text-[10px] font-black text-slate-400">
                 <span className={cn("w-3 h-3 border rounded-full shadow-inner", isDarkMode ? "bg-slate-800 border-slate-700" : "bg-slate-100 border-slate-200")}></span> LIBRE
               </div>
@@ -1477,7 +1456,7 @@ export default function App() {
                           "w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-500",
                           isDarkMode ? "bg-slate-800 border-slate-700 text-slate-600" : "bg-white border-slate-200 text-slate-300"
                         )}>
-                          <Search className="w-4 h-4" />
+                          <Activity className="w-4 h-4" />
                         </div>
                       </div>
                       {reportData.length === 0 ? (
@@ -1637,30 +1616,13 @@ export default function App() {
                   exit={{ opacity: 0, y: -10 }}
                 >
                   <div className="space-y-4">
-                    {historySearchTerm && (
-                      <div className={cn(
-                        "p-4 rounded-2xl border flex items-center justify-between mb-4 rounded-lg",
-                        isDarkMode ? "bg-indigo-900/20 border-indigo-500/30 text-indigo-300" : "bg-indigo-50 border-indigo-100 text-indigo-600"
-                      )}>
-                        <div className="flex items-center gap-3">
-                          <Search className="w-5 h-5" />
-                          <p className="text-sm font-bold uppercase tracking-tight">Mostrando historial para: <span className="font-black">#{historySearchTerm}</span></p>
-                        </div>
-                        <button 
-                          onClick={() => setHistorySearchTerm('')}
-                          className="bg-white/20 hover:bg-white/40 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors"
-                        >
-                          Limpiar
-                        </button>
-                      </div>
-                    )}
-                    {history.filter(v => v.plate.includes(historySearchTerm)).length === 0 ? (
+                    {history.length === 0 ? (
                       <div className="h-64 flex flex-col items-center justify-center text-slate-300 gap-3 grayscale">
                          <HistoryIcon className="w-12 h-12 opacity-20" />
                          <p className="text-[10px] font-black uppercase tracking-widest">Sin registros que coincidan</p>
                       </div>
                     ) : (
-                      history.filter(v => v.plate.includes(historySearchTerm)).map((v) => {
+                      history.map((v) => {
                         if (!v.entryTime || !v.exitTime || !v.id) return null;
                         const diff = v.exitTime.toDate().getTime() - v.entryTime.toDate().getTime();
                         const h = Math.floor(diff / (1000 * 60 * 60));
@@ -2506,7 +2468,6 @@ export default function App() {
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => {
-                      setHistorySearchTerm(selectedHistoryVehicle.plate);
                       setActiveView('history');
                       setSelectedHistoryVehicle(null);
                     }}
