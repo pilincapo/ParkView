@@ -44,7 +44,10 @@ import {
   AlertTriangle,
   HelpCircle,
   MousePointer2,
-  Trash2
+  Trash2,
+  CreditCard,
+  TrendingUp,
+  Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -110,6 +113,16 @@ export default function App() {
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-01'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [reportData, setReportData] = useState<Vehicle[]>([]);
+  const [reportPlate, setReportPlate] = useState('');
+  const [reportOperator, setReportOperator] = useState('all');
+
+  // History filters and pagination
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyDate, setHistoryDate] = useState('');
+  const [historyType, setHistoryType] = useState<'all' | 'car' | 'motorcycle'>('all');
+  const [historyEntryType, setHistoryEntryType] = useState<'all' | 'daily' | 'monthly'>('all');
+  const [historyPlate, setHistoryPlate] = useState('');
+  const PAGE_SIZE = 15;
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -251,6 +264,7 @@ export default function App() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const vehicles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
       setHistory(vehicles);
+      setHistoryPage(1); // Reset pagination on new data
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'vehicles history');
     });
@@ -266,12 +280,20 @@ export default function App() {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
-    const q = query(
-      collection(db, 'vehicles'),
+    const constraints = [
       where('establishmentId', '==', selectedEstId),
       where('status', '==', VehicleStatus.COMPLETED),
       where('exitTime', '>=', Timestamp.fromDate(start)),
       where('exitTime', '<=', Timestamp.fromDate(end))
+    ];
+
+    if (reportOperator !== 'all') {
+      constraints.push(where('ownerId', '==', reportOperator));
+    }
+
+    const q = query(
+      collection(db, 'vehicles'),
+      ...constraints
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -282,7 +304,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [user, selectedEstId, activeView, startDate, endDate]);
+  }, [user, selectedEstId, activeView, startDate, endDate, reportOperator]);
 
   // Listen to monthly passes
   useEffect(() => {
@@ -345,6 +367,12 @@ export default function App() {
       return;
     }
     setPlateError(null);
+
+    // Rule: Motorcycle slots (M-) only allow motorcycles
+    if (selectedSlot.startsWith('M-') && selectedVehicleType !== 'motorcycle') {
+      setPlateError('En cocheras de motos solo se permiten motos');
+      return;
+    }
 
     // Check if slot is already occupied
     const occupiedVehicle = activeVehicles.find(v => v.slotId === selectedSlot);
@@ -1365,7 +1393,8 @@ export default function App() {
                   exit={{ opacity: 0, y: -10 }}
                   className="space-y-8"
                 >
-                  <div className="flex flex-col md:flex-row gap-4 items-end bg-slate-50/50 dark:bg-slate-800/30 p-4 md:p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
+                  <div className="flex flex-col gap-6 bg-slate-50/50 dark:bg-slate-800/30 p-6 md:p-8 rounded-3xl border border-slate-100 dark:border-slate-800">
+                    <div className="flex flex-col md:flex-row gap-4 items-end">
                       <div className="space-y-1 w-full md:w-auto">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Desde</label>
                         <input 
@@ -1390,107 +1419,150 @@ export default function App() {
                           )}
                         />
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-8">
-                      <div className={cn(
-                        "p-6 md:p-8 rounded-[2.5rem] border shadow-xl relative overflow-hidden group",
-                        isDarkMode ? "bg-slate-900 border-slate-800 shadow-none" : "bg-white border-slate-100 shadow-slate-100/50"
-                      )}>
-                        <div className={cn(
-                          "absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500",
-                          isDarkMode ? "bg-emerald-900/20" : "bg-emerald-50"
-                        )} />
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 relative">Caja Total</p>
-                        <p className={cn(
-                          "text-3xl md:text-5xl font-black relative",
-                          isDarkMode ? "text-emerald-400" : "text-emerald-600"
-                        )}>
-                          {formatCurrency(reportData.reduce((acc, v) => acc + (v.totalAmount || 0), 0))}
-                        </p>
-                      </div>
-                      <div className={cn(
-                        "p-6 md:p-8 rounded-[2.5rem] border shadow-xl relative overflow-hidden group text-center",
-                        isDarkMode ? "bg-slate-900 border-slate-800 shadow-none" : "bg-white border-slate-100 shadow-slate-100/50"
-                      )}>
-                        <div className={cn(
-                          "absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500",
-                          isDarkMode ? "bg-slate-800/50" : "bg-slate-50"
-                        )} />
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 relative">Operaciones</p>
-                        <p className={cn(
-                          "text-3xl md:text-5xl font-black relative",
-                          isDarkMode ? "text-white" : "text-slate-900"
-                        )}>{reportData.length}</p>
-                      </div>
-                      <div className={cn(
-                        "p-6 md:p-8 rounded-[2.5rem] border shadow-xl relative overflow-hidden group text-right",
-                        isDarkMode ? "bg-slate-900 border-slate-800 shadow-none" : "bg-white border-slate-100 shadow-slate-100/50"
-                      )}>
-                        <div className={cn(
-                          "absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500",
-                          isDarkMode ? "bg-indigo-900/20" : "bg-indigo-50"
-                        )} />
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 relative">Ticket Prom.</p>
-                        <p className={cn(
-                          "text-3xl md:text-5xl font-black relative",
-                          isDarkMode ? "text-indigo-400" : "text-indigo-600"
-                        )}>
-                          {reportData.length > 0 
-                            ? formatCurrency(reportData.reduce((acc, v) => acc + (v.totalAmount || 0), 0) / reportData.length)
-                            : '$ 0'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className={cn(
-                      "border rounded-[2rem] overflow-hidden shadow-sm",
-                      isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-white border-slate-100"
-                    )}>
-                      <div className={cn(
-                        "px-8 py-5 border-b flex justify-between items-center",
-                        isDarkMode ? "bg-slate-800/50 border-slate-800" : "bg-slate-50 border-slate-100"
-                      )}>
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Detalle de Cobros</h4>
-                        <div className={cn(
-                          "w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-500",
-                          isDarkMode ? "bg-slate-800 border-slate-700 text-slate-600" : "bg-white border-slate-200 text-slate-300"
-                        )}>
-                          <Activity className="w-4 h-4" />
+                      <div className="space-y-1 w-full md:w-auto flex-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Buscar Patente</label>
+                        <div className="relative">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input 
+                            type="text" 
+                            placeholder="FILTRAR POR PATENTE..."
+                            value={reportPlate}
+                            onChange={(e) => setReportPlate(e.target.value.toUpperCase())}
+                            className={cn(
+                              "block w-full border-2 border-transparent focus:border-indigo-500 rounded-xl pl-10 pr-4 py-3 text-xs font-black outline-none transition-all shadow-sm uppercase tracking-widest",
+                              isDarkMode ? "bg-slate-800 text-slate-100" : "bg-white text-slate-900"
+                            )}
+                          />
                         </div>
                       </div>
-                      {reportData.length === 0 ? (
-                        <div className="p-20 text-center text-slate-300 italic text-xs">No hay datos para el periodo seleccionado</div>
-                      ) : (
-                        <div className={cn("divide-y", isDarkMode ? "divide-slate-800" : "divide-slate-50")}>
-                          {Object.entries(reportData.reduce((acc, curr) => {
-                            if (!curr.exitTime || !curr.totalAmount) return acc;
-                            const dateKey = format(curr.exitTime.toDate(), 'dd/MM/yyyy');
-                            if (!acc[dateKey]) acc[dateKey] = { income: 0, count: 0 };
-                            acc[dateKey].income += curr.totalAmount;
-                            acc[dateKey].count += 1;
-                            return acc;
-                          }, {} as Record<string, { income: number, count: number }>)).sort().reverse().map(([date, stats]) => {
-                            const s = stats as { income: number, count: number };
-                            return (
-                              <div key={date} className={cn("px-6 py-4 flex items-center justify-between transition-colors", isDarkMode ? "hover:bg-slate-800/40" : "hover:bg-slate-50")}>
-                                <span className={cn("font-bold text-sm", isDarkMode ? "text-slate-400" : "text-slate-600")}>{date}</span>
-                                <div className="flex gap-8">
-                                <div className="text-right">
-                                  <span className="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase block">Recaudación</span>
-                                  <span className={cn("font-bold", isDarkMode ? "text-emerald-400" : "text-emerald-600")}>{formatCurrency(s.income)}</span>
-                                </div>
-                                <div className="text-right w-16">
-                                  <span className="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase block">Vehículos</span>
-                                  <span className={cn("font-bold", isDarkMode ? "text-slate-100" : "text-slate-900")}>{s.count}</span>
-                                </div>
-                                </div>
+                      <div className="space-y-1 w-full md:w-auto min-w-[200px]">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Operador</label>
+                        <select 
+                          value={reportOperator}
+                          onChange={(e) => setReportOperator(e.target.value)}
+                          className={cn(
+                            "block w-full border-2 border-transparent focus:border-indigo-500 rounded-xl px-4 py-3 text-sm font-bold outline-none transition-all shadow-sm",
+                            isDarkMode ? "bg-slate-800 text-slate-100" : "bg-white text-slate-900"
+                          )}
+                        >
+                          <option value="all">TODOS LOS OPERADORES</option>
+                          {/* If establishments has members, we could theoretically map them if we had names. 
+                              For now, we'll keep it simple or allow entry of ID if we have a list. 
+                              Actually, we can use the current user as an option. */}
+                          <option value={user.uid}>MIS OPERACIONES</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                    {(() => {
+                      const filteredData = reportData.filter(v => v.plate.includes(reportPlate));
+                      const totalCaja = filteredData.reduce((acc, v) => acc + (v.totalAmount || 0), 0);
+                      const opsCount = filteredData.length;
+                      const ticketProm = opsCount > 0 ? totalCaja / opsCount : 0;
+
+                      return (
+                        <>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-8">
+                            <div className={cn(
+                              "p-6 md:p-8 rounded-[2.5rem] border shadow-xl relative overflow-hidden group",
+                              isDarkMode ? "bg-slate-900 border-slate-800 shadow-none" : "bg-white border-slate-100 shadow-slate-100/50"
+                            )}>
+                              <div className={cn(
+                                "absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500",
+                                isDarkMode ? "bg-emerald-900/20" : "bg-emerald-50"
+                              )} />
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 relative">Caja Total</p>
+                              <p className={cn(
+                                "text-3xl md:text-5xl font-black relative",
+                                isDarkMode ? "text-emerald-400" : "text-emerald-600"
+                              )}>
+                                {formatCurrency(totalCaja)}
+                              </p>
+                            </div>
+                            <div className={cn(
+                              "p-6 md:p-8 rounded-[2.5rem] border shadow-xl relative overflow-hidden group text-center",
+                              isDarkMode ? "bg-slate-900 border-slate-800 shadow-none" : "bg-white border-slate-100 shadow-slate-100/50"
+                            )}>
+                              <div className={cn(
+                                "absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500",
+                                isDarkMode ? "bg-slate-800/50" : "bg-slate-50"
+                              )} />
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 relative">Operaciones</p>
+                              <p className={cn(
+                                "text-3xl md:text-5xl font-black relative",
+                                isDarkMode ? "text-white" : "text-slate-900"
+                              )}>{opsCount}</p>
+                            </div>
+                            <div className={cn(
+                              "p-6 md:p-8 rounded-[2.5rem] border shadow-xl relative overflow-hidden group text-right",
+                              isDarkMode ? "bg-slate-900 border-slate-800 shadow-none" : "bg-white border-slate-100 shadow-slate-100/50"
+                            )}>
+                              <div className={cn(
+                                "absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500",
+                                isDarkMode ? "bg-indigo-900/20" : "bg-indigo-50"
+                              )} />
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 relative">Ticket Prom.</p>
+                              <p className={cn(
+                                "text-3xl md:text-5xl font-black relative",
+                                isDarkMode ? "text-indigo-400" : "text-indigo-600"
+                              )}>
+                                {formatCurrency(ticketProm)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className={cn(
+                            "border rounded-[2rem] overflow-hidden shadow-sm",
+                            isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-white border-slate-100"
+                          )}>
+                            <div className={cn(
+                              "px-8 py-5 border-b flex justify-between items-center",
+                              isDarkMode ? "bg-slate-800/50 border-slate-800" : "bg-slate-50 border-slate-100"
+                            )}>
+                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Detalle de Cobros {reportPlate && `(${reportPlate})`}</h4>
+                              <div className={cn(
+                                "w-8 h-8 rounded-full border flex items-center justify-center transition-colors duration-500",
+                                isDarkMode ? "bg-slate-800 border-slate-700 text-slate-600" : "bg-white border-slate-200 text-slate-300"
+                              )}>
+                                <Activity className="w-4 h-4" />
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                            </div>
+                            {filteredData.length === 0 ? (
+                              <div className="p-20 text-center text-slate-300 italic text-xs">No hay datos para los filtros seleccionados</div>
+                            ) : (
+                              <div className={cn("divide-y", isDarkMode ? "divide-slate-800" : "divide-slate-50")}>
+                                {Object.entries(filteredData.reduce((acc, curr) => {
+                                  if (!curr.exitTime || !curr.totalAmount) return acc;
+                                  const dateKey = format(curr.exitTime.toDate(), 'dd/MM/yyyy');
+                                  if (!acc[dateKey]) acc[dateKey] = { income: 0, count: 0 };
+                                  acc[dateKey].income += curr.totalAmount;
+                                  acc[dateKey].count += 1;
+                                  return acc;
+                                }, {} as Record<string, { income: number, count: number }>)).sort().reverse().map(([date, stats]) => {
+                                  const s = stats as { income: number, count: number };
+                                  return (
+                                    <div key={date} className={cn("px-6 py-4 flex items-center justify-between transition-colors", isDarkMode ? "hover:bg-slate-800/40" : "hover:bg-slate-50")}>
+                                      <span className={cn("font-bold text-sm", isDarkMode ? "text-slate-400" : "text-slate-600")}>{date}</span>
+                                      <div className="flex gap-8">
+                                      <div className="text-right">
+                                        <span className="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase block">Recaudación</span>
+                                        <span className={cn("font-bold", isDarkMode ? "text-emerald-400" : "text-emerald-600")}>{formatCurrency(s.income)}</span>
+                                      </div>
+                                      <div className="text-right w-16">
+                                        <span className="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase block">Vehículos</span>
+                                        <span className={cn("font-bold", isDarkMode ? "text-slate-100" : "text-slate-900")}>{s.count}</span>
+                                      </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
                 </motion.div>
               ) : activeView === 'help' ? (
                 <motion.div 
@@ -1498,49 +1570,47 @@ export default function App() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="space-y-6 pb-20"
+                  className="space-y-8 pb-32"
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Header de Ayuda */}
+                  <div className="text-center space-y-2 mb-12">
+                    <h2 className={cn("text-3xl font-black uppercase tracking-tight", isDarkMode ? "text-white" : "text-slate-900")}>Centro de Ayuda CocheraFlow</h2>
+                    <p className="text-slate-500 font-medium max-w-lg mx-auto">Domina todas las herramientas del sistema profesional de gestión de estacionamientos.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Guía 1: Ingreso */}
                     <div className={cn(
-                      "p-8 rounded-[2rem] border overflow-hidden relative",
-                      isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+                      "group p-8 rounded-[2.5rem] border overflow-hidden relative transition-all duration-500 hover:shadow-2xl",
+                      isDarkMode ? "bg-slate-900 border-slate-800 hover:border-indigo-500/50" : "bg-white border-slate-100 hover:border-indigo-200 shadow-xl shadow-slate-200/20"
                     )}>
                       <div className="relative z-10 space-y-4">
-                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
-                          <MousePointer2 className="w-6 h-6" />
+                        <div className="w-14 h-14 rounded-2xl bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
+                          <LogIn className="w-7 h-7" />
                         </div>
-                        <h3 className={cn("text-xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>¿Cómo ingresar un vehículo?</h3>
+                        <h3 className={cn("text-2xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>Ingreso de Vehículos</h3>
                         <p className="text-sm text-slate-500 font-medium leading-relaxed">
-                          En el panel de <b>Cocheras</b>, simplemente haz clic en un espacio vacío (azul). 
-                          Se abrirá el formulario para ingresar la patente y el tipo de vehículo. Una vez registrado, el espacio cambiará a color rojo indicando que está ocupado.
+                          En el <b>Monitor de Cocheras</b>, haz clic en un espacio libre. Recuerda que las <b>cocheras de motos</b> son exclusivas para motos, mientras que las de <b>autos</b> son mixtas (permiten autos y motos). Al guardar, el espacio se ocupará y el cronómetro iniciará automáticamente.
                         </p>
                       </div>
                       <div className="mt-8 rounded-2xl border border-slate-200/10 overflow-hidden bg-slate-950/50 p-4">
                         <div className="aspect-video flex items-center justify-center bg-slate-800 rounded-xl relative">
                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-transparent" />
-                           {/* Simplified App UI via SVG */}
                            <svg className="w-full h-full p-4" viewBox="0 0 200 120">
                              <rect x="10" y="10" width="180" height="100" rx="4" fill="currentColor" className="text-slate-900" />
-                             {/* Parking Grid */}
                              <g opacity="0.3">
                                {[0, 1, 2].map(r => [0, 1, 2, 3].map(c => (
                                  <rect key={`${r}-${c}`} x={25 + c*40} y={25 + r*30} width="30" height="20" rx="2" fill="currentColor" className="text-slate-700" />
                                )))}
                              </g>
-                             {/* Highlighted Slot */}
                              <motion.rect 
                                initial={{ opacity: 0.3 }}
                                animate={{ opacity: [0.3, 1, 0.3] }}
                                transition={{ duration: 2, repeat: Infinity }}
                                x="65" y="55" width="30" height="20" rx="2" fill="currentColor" className="text-indigo-500" 
                              />
-                             {/* Cursor */}
                              <motion.g
-                               animate={{ 
-                                 x: [20, 75, 20], 
-                                 y: [20, 60, 20] 
-                               }}
+                               animate={{ x: [20, 75, 20], y: [20, 60, 20] }}
                                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                              >
                                <MousePointer2 className="w-8 h-8 text-white drop-shadow-lg" />
@@ -1552,37 +1622,94 @@ export default function App() {
 
                     {/* Guía 2: Salida */}
                     <div className={cn(
-                      "p-8 rounded-[2rem] border overflow-hidden relative",
-                      isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
+                      "group p-8 rounded-[2.5rem] border overflow-hidden relative transition-all duration-500 hover:shadow-2xl",
+                      isDarkMode ? "bg-slate-900 border-slate-800 hover:border-rose-500/50" : "bg-white border-slate-100 hover:border-rose-200 shadow-xl shadow-slate-200/20"
                     )}>
                       <div className="relative z-10 space-y-4">
-                        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
-                          <LogOut className="w-6 h-6" />
+                        <div className="w-14 h-14 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/20 group-hover:scale-110 transition-transform">
+                          <LogOut className="w-7 h-7" />
                         </div>
-                        <h3 className={cn("text-xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>¿Cómo retirar un vehículo?</h3>
+                        <h3 className={cn("text-2xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>Salida y Cobro</h3>
                         <p className="text-sm text-slate-500 font-medium leading-relaxed">
-                          Haz clic en cualquier espacio ocupado (rojo) o busca la patente en la sección <b>Sesiones</b>. 
-                          El sistema calculará automáticamente el tiempo y el monto a cobrar basado en tus tarifas configuradas.
+                          Haz clic en una cochera ocupada (Roja). Verás el tiempo transcurrido y el monto calculado según tu configuración de tarifas. Confirma el cobro para liberar el lugar y pasar el registro al historial.
                         </p>
                       </div>
                       <div className="mt-8 rounded-2xl border border-slate-200/10 overflow-hidden bg-slate-950/50 p-4">
                         <div className="aspect-video flex items-center justify-center bg-slate-800 rounded-xl relative">
                            <div className="absolute inset-0 bg-gradient-to-br from-rose-500/20 to-transparent" />
-                           {/* Simplified App UI via SVG for Exit */}
                            <svg className="w-full h-full p-4" viewBox="0 0 200 120">
                              <rect x="10" y="10" width="180" height="100" rx="4" fill="currentColor" className="text-slate-900" />
-                             {/* Payment Modal Mockup */}
                              <motion.g
                                initial={{ opacity: 0, y: 10 }}
                                animate={{ opacity: 1, y: 0 }}
                                transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse" }}
                              >
-                               <rect x="50" y="25" width="100" height="70" rx="6" fill="currentColor" className="text-slate-800" stroke={isDarkMode ? "#334155" : "#e2e8f0"} strokeWidth="1" />
-                               <rect x="70" y="40" width="60" height="6" rx="2" fill="currentColor" className="text-slate-600" />
-                               <circle cx="100" cy="60" r="10" fill="currentColor" className="text-emerald-500/20" />
-                               <path d="M95 60 l3 3 l6 -6" stroke="#10b981" strokeWidth="2" fill="none" />
-                               <rect x="75" y="80" width="50" height="8" rx="2" fill="currentColor" className="text-emerald-600" />
+                               <rect x="50" y="25" width="100" height="70" rx="6" fill="currentColor" className="text-slate-800" stroke={isDarkMode ? "#334155" : "#f1f5f9"} strokeWidth="1" />
+                               <circle cx="100" cy="50" r="8" fill="#10b981" fillOpacity="0.2" />
+                               <text x="100" y="52" fontSize="6" fontWeight="bold" textAnchor="middle" fill="#10b981" className="font-mono">OK</text>
+                               <rect x="65" y="70" width="70" height="10" rx="2" fill="#10b981" />
                              </motion.g>
+                           </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Guía 3: Abonados Mensuales */}
+                    <div className={cn(
+                      "group p-8 rounded-[2.5rem] border overflow-hidden relative transition-all duration-500 hover:shadow-2xl",
+                      isDarkMode ? "bg-slate-900 border-slate-800 hover:border-emerald-500/50" : "bg-white border-slate-100 hover:border-emerald-200 shadow-xl shadow-slate-200/20"
+                    )}>
+                      <div className="relative z-10 space-y-4">
+                        <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
+                          <CreditCard className="w-7 h-7" />
+                        </div>
+                        <h3 className={cn("text-2xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>Gestión de Abonados</h3>
+                        <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                          En la pestaña de <b>Abonados</b>, puedes registrar vehículos mensuales. Al ingresar un abonado, el sistema no le cobrará por tiempo, permitiendo un control separado de los clientes fijos del establecimiento.
+                        </p>
+                      </div>
+                      <div className="mt-8 rounded-2xl border border-slate-200/10 overflow-hidden bg-slate-950/50 p-4">
+                        <div className="aspect-video flex items-center justify-center bg-slate-800 rounded-xl relative">
+                           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-transparent" />
+                           <svg className="w-full h-full p-4" viewBox="0 0 200 120">
+                             <rect x="50" y="20" width="100" height="80" rx="10" fill="#10b981" fillOpacity="0.1" stroke="#10b981" strokeWidth="1" strokeDasharray="4 2" />
+                             <rect x="65" y="40" width="70" height="40" rx="4" fill="currentColor" className="text-slate-900" />
+                             <rect x="75" y="55" width="50" height="10" rx="2" fill="#10b981" />
+                             <path d="M100 35 v-10 M95 30 h10" stroke="#10b981" strokeWidth="2" />
+                           </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Guía 4: Reportes y Caja */}
+                    <div className={cn(
+                      "group p-8 rounded-[2.5rem] border overflow-hidden relative transition-all duration-500 hover:shadow-2xl",
+                      isDarkMode ? "bg-slate-900 border-slate-800 hover:border-orange-500/50" : "bg-white border-slate-100 hover:border-orange-200 shadow-xl shadow-slate-200/20"
+                    )}>
+                      <div className="relative z-10 space-y-4">
+                        <div className="w-14 h-14 rounded-2xl bg-orange-500 text-white flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-110 transition-transform">
+                          <TrendingUp className="w-7 h-7" />
+                        </div>
+                        <h3 className={cn("text-2xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>Reportes y Analítica</h3>
+                        <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                          Consulta la recaudación total, operarios activos y flujo de vehículos. Utiliza los filtros avanzados para ver el rendimiento por fecha o por un operario específico, ayudando al cierre de caja diario.
+                        </p>
+                      </div>
+                      <div className="mt-8 rounded-2xl border border-slate-200/10 overflow-hidden bg-slate-950/50 p-4">
+                        <div className="aspect-video flex items-center justify-center bg-slate-800 rounded-xl relative">
+                           <div className="absolute inset-0 bg-gradient-to-br from-orange-500/20 to-transparent" />
+                           <svg className="w-full h-full p-4" viewBox="0 0 200 120">
+                             <motion.path 
+                               d="M30 90 L60 70 L90 80 L120 40 L150 50 L170 20" 
+                               fill="none" 
+                               stroke="#f97316" 
+                               strokeWidth="3" 
+                               strokeLinecap="round"
+                               initial={{ pathLength: 0 }}
+                               animate={{ pathLength: 1 }}
+                               transition={{ duration: 2, repeat: Infinity }}
+                             />
+                             <line x1="30" y1="90" x2="170" y2="90" stroke="currentColor" className="text-slate-700" strokeWidth="1" />
                            </svg>
                         </div>
                       </div>
@@ -1591,20 +1718,32 @@ export default function App() {
 
                   {/* Sección de Soporte */}
                   <div className={cn(
-                    "p-8 rounded-[2.5rem] border text-center space-y-6",
-                    isDarkMode ? "bg-indigo-900/10 border-indigo-500/20" : "bg-indigo-50 border-indigo-100"
+                    "p-10 rounded-[3rem] border overflow-hidden relative group",
+                    isDarkMode ? "bg-indigo-900/10 border-indigo-500/20" : "bg-indigo-50/50 border-indigo-100"
                   )}>
-                    <div className="w-16 h-16 bg-indigo-500 text-white rounded-full flex items-center justify-center mx-auto shadow-xl shadow-indigo-500/20">
-                      <HelpCircle className="w-8 h-8" />
-                    </div>
-                    <div className="max-w-md mx-auto space-y-2">
-                      <h3 className={cn("text-2xl font-black", isDarkMode ? "text-white" : "text-slate-900")}>¿Necesitas ayuda adicional?</h3>
-                      <p className="text-slate-500 font-medium">Si tienes problemas con la configuración de tarifas o necesitas soporte técnico:</p>
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-4">
-                       <button className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-indigo-500/30 hover:scale-105 transition-transform">
-                         Contactar Soporte
-                       </button>
+                    <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/20 transition-colors" />
+                    
+                    <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+                      <div className="w-24 h-24 bg-indigo-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-indigo-500/40 shrink-0 rotate-3 group-hover:rotate-0 transition-transform duration-500">
+                        <Smartphone className="w-12 h-12" />
+                      </div>
+                      
+                      <div className="flex-1 text-center md:text-left space-y-4">
+                        <h3 className={cn("text-3xl font-black tracking-tight", isDarkMode ? "text-white" : "text-slate-900")}>¿Aún tienes dudas?</h3>
+                        <p className="text-slate-500 font-medium leading-relaxed max-w-xl">
+                          Nuestro equipo está disponible para ayudarte a configurar tus tarifas complejas (fraccionamiento, estadías largas) o para cualquier duda técnica sobre la integración con impresoras de tickets.
+                        </p>
+                        <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-6">
+                           <a 
+                             href="https://wa.me/543426111121"
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/30 hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-2"
+                           >
+                             Contactar vía WhatsApp
+                           </a>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -1615,90 +1754,222 @@ export default function App() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                 >
-                  <div className="space-y-4">
-                    {history.length === 0 ? (
-                      <div className="h-64 flex flex-col items-center justify-center text-slate-300 gap-3 grayscale">
-                         <HistoryIcon className="w-12 h-12 opacity-20" />
-                         <p className="text-[10px] font-black uppercase tracking-widest">Sin registros que coincidan</p>
+                   <div className="space-y-6">
+                    {/* Filtros de Historial */}
+                    <div className={cn(
+                      "p-4 rounded-2xl border flex flex-col md:flex-row gap-4 items-center transition-all",
+                      isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-sm"
+                    )}>
+                      <div className="relative flex-1 w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input 
+                          type="text"
+                          placeholder="BUSCAR PATENTE EN HISTORIAL..."
+                          value={historyPlate}
+                          onChange={(e) => setHistoryPlate(e.target.value.toUpperCase())}
+                          className={cn(
+                            "w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-black outline-none border-2 border-transparent transition-all",
+                            isDarkMode ? "bg-slate-800 text-white focus:border-indigo-500" : "bg-slate-50 text-slate-900 focus:border-indigo-500"
+                          )}
+                        />
                       </div>
-                    ) : (
-                      history.map((v) => {
-                        if (!v.entryTime || !v.exitTime || !v.id) return null;
-                        const diff = v.exitTime.toDate().getTime() - v.entryTime.toDate().getTime();
-                        const h = Math.floor(diff / (1000 * 60 * 60));
-                        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                        const isMonthly = v.entryType === 'monthly';
+                      <div className="flex gap-2 w-full md:w-auto">
+                        <select 
+                          value={historyType}
+                          onChange={(e) => setHistoryType(e.target.value as any)}
+                          className={cn(
+                            "px-3 py-2.5 rounded-xl text-[10px] font-black uppercase outline-none border-2 border-transparent flex-1 md:flex-none",
+                            isDarkMode ? "bg-slate-800 text-white" : "bg-slate-50 text-slate-900"
+                          )}
+                        >
+                          <option value="all">TODOS LOS VEHÍCULOS</option>
+                          <option value="car">AUTOS</option>
+                          <option value="motorcycle">MOTOS</option>
+                        </select>
+                        <select 
+                          value={historyEntryType}
+                          onChange={(e) => setHistoryEntryType(e.target.value as any)}
+                          className={cn(
+                            "px-3 py-2.5 rounded-xl text-[10px] font-black uppercase outline-none border-2 border-transparent flex-1 md:flex-none",
+                            isDarkMode ? "bg-slate-800 text-white" : "bg-slate-50 text-slate-900"
+                          )}
+                        >
+                          <option value="all">TODOS LOS TIPOS</option>
+                          <option value="daily">DIARIO</option>
+                          <option value="monthly">ABONADO</option>
+                        </select>
+                      </div>
+                      <input 
+                        type="date"
+                        value={historyDate}
+                        onChange={(e) => setHistoryDate(e.target.value)}
+                        className={cn(
+                          "px-3 py-2.5 rounded-xl text-[10px] font-black uppercase outline-none border-2 border-transparent w-full md:w-auto",
+                          isDarkMode ? "bg-slate-800 text-white" : "bg-slate-50 text-slate-900"
+                        )}
+                      />
+                    </div>
 
-                        return (
-                          <div 
-                            key={v.id} 
-                            onClick={() => setSelectedHistoryVehicle(v)}
-                            className={cn(
-                              "border p-3 flex items-center justify-between transition-all group cursor-pointer",
-                              "rounded-lg",
-                              isDarkMode ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-white border-slate-100 hover:border-slate-200 shadow-sm"
+                    {(() => {
+                      const filteredHistory = history.filter(v => {
+                        const matchesPlate = v.plate.includes(historyPlate);
+                        const matchesType = historyType === 'all' || v.vehicleType === historyType;
+                        const matchesEntryType = historyEntryType === 'all' || v.entryType === historyEntryType;
+                        const matchesDate = !historyDate || (v.exitTime && format(v.exitTime.toDate(), 'yyyy-MM-dd') === historyDate);
+                        return matchesPlate && matchesType && matchesEntryType && matchesDate;
+                      });
+
+                      const totalPages = Math.ceil(filteredHistory.length / PAGE_SIZE);
+                      const paginatedHistory = filteredHistory.slice((historyPage - 1) * PAGE_SIZE, historyPage * PAGE_SIZE);
+
+                      return (
+                        <>
+                          <div className="space-y-3">
+                            {paginatedHistory.length === 0 ? (
+                              <div className="h-64 flex flex-col items-center justify-center text-slate-300 gap-3 grayscale">
+                                 <HistoryIcon className="w-12 h-12 opacity-20" />
+                                 <p className="text-[10px] font-black uppercase tracking-widest">Sin registros que coincidan</p>
+                              </div>
+                            ) : (
+                              paginatedHistory.map((v) => {
+                                if (!v.entryTime || !v.exitTime || !v.id) return null;
+                                const diff = v.exitTime.toDate().getTime() - v.entryTime.toDate().getTime();
+                                const h = Math.floor(diff / (1000 * 60 * 60));
+                                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                                const isMonthly = v.entryType === 'monthly';
+
+                                return (
+                                  <div 
+                                    key={v.id} 
+                                    onClick={() => setSelectedHistoryVehicle(v)}
+                                    className={cn(
+                                      "border p-4 flex items-center justify-between transition-all group cursor-pointer hover:scale-[1.01]",
+                                      "rounded-xl",
+                                      isDarkMode ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-white border-slate-100 hover:border-slate-200 shadow-sm"
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-4">
+                                      <div className={cn(
+                                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm",
+                                        isDarkMode 
+                                          ? (isMonthly ? "bg-emerald-900/20 text-emerald-400" : "bg-blue-900/20 text-blue-400") 
+                                          : (isMonthly ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600")
+                                      )}>
+                                        {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-6 h-6" /> : <Car className="w-6 h-6" />}
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <h4 className={cn(
+                                            "font-black tracking-widest text-sm relative px-2.5 py-1 rounded bg-slate-950/5 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800 transition-colors uppercase",
+                                            isDarkMode 
+                                              ? (isMonthly ? "text-emerald-400 border-emerald-800/30" : "text-blue-400 border-blue-800/30") 
+                                              : (isMonthly ? "text-emerald-700 border-emerald-100" : "text-blue-700 border-blue-100")
+                                          )}>
+                                            {v.plate}
+                                          </h4>
+                                          <span className={cn(
+                                            "text-[7px] font-black uppercase tracking-[0.2em] px-1.5 py-0.5 rounded border shadow-sm",
+                                            isMonthly ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-blue-500/10 border-blue-500/20 text-blue-500"
+                                          )}>
+                                            {isMonthly ? 'Abono' : 'Diario'}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tight">
+                                          <Clock className="w-3 h-3" />
+                                          <span>{format(v.entryTime.toDate(), 'HH:mm')}</span>
+                                          <span>→</span>
+                                          <span>{format(v.exitTime.toDate(), 'HH:mm')}</span>
+                                          <span className="opacity-30">|</span>
+                                          <span className="text-slate-500">{h}h {m}m</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                      <div className="text-right">
+                                        <p className={cn("font-black text-lg", isMonthly ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-blue-400" : "text-blue-600"))}>{formatCurrency(v.totalAmount)}</p>
+                                        <p className="text-[10px] text-slate-300 dark:text-slate-600 font-black uppercase tracking-tighter">{format(v.exitTime.toDate(), 'dd MMM yyyy', { locale: es })}</p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (!v.id) return;
+                                          setHistoryVehicleToDelete(v);
+                                        }}
+                                        className={cn(
+                                          "p-2.5 transition-all rounded-xl relative z-10 flex items-center justify-center",
+                                          isDarkMode ? "text-slate-500 hover:text-rose-400 hover:bg-slate-800" : "text-slate-300 hover:text-rose-500 hover:bg-rose-50"
+                                        )}
+                                        title="Eliminar registro"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })
                             )}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={cn(
-                                "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
-                                isDarkMode 
-                                  ? (isMonthly ? "bg-emerald-900/20 text-emerald-400" : "bg-blue-900/20 text-blue-400") 
-                                  : (isMonthly ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600")
-                              )}>
-                                {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-5 h-5" /> : <Car className="w-5 h-5" />}
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-2 mb-0.5">
-                                  <h4 className={cn(
-                                    "font-black tracking-widest text-xs relative px-2 py-0.5 rounded shadow-sm inline-block border overflow-hidden transition-colors",
-                                    isDarkMode 
-                                      ? (isMonthly ? "bg-emerald-950/40 border-emerald-800/50 text-emerald-400" : "bg-blue-950/40 border-blue-800/50 text-blue-400") 
-                                      : (isMonthly ? "bg-emerald-50 border-emerald-100 text-emerald-700" : "bg-blue-50 border-blue-100 text-blue-700")
-                                  )}>
-                                    <span className="relative z-10">{v.plate}</span>
-                                  </h4>
-                                  <span className={cn(
-                                    "text-[6px] font-black uppercase tracking-widest px-1 py-0.5 rounded border-none",
-                                    isMonthly ? "bg-emerald-500/10 text-emerald-500" : "bg-blue-500/10 text-blue-500"
-                                  )}>
-                                    {isMonthly ? 'Abono' : 'Diario'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2 text-[9px] text-slate-400 font-bold uppercase tracking-tight">
-                                  <span>{format(v.entryTime.toDate(), 'HH:mm')}</span>
-                                  <span>→</span>
-                                  <span>{format(v.exitTime.toDate(), 'HH:mm')}</span>
-                                  <span className={isDarkMode ? "text-slate-800" : "text-slate-200"}>|</span>
-                                  <span>{h}h {m}m</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div className="text-right">
-                                <p className={cn("font-black text-base", isMonthly ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-blue-400" : "text-blue-600"))}>{formatCurrency(v.totalAmount)}</p>
-                                <p className="text-[9px] text-slate-300 dark:text-slate-600 font-bold uppercase tracking-tighter">{format(v.exitTime.toDate(), 'dd MMM')}</p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (!v.id) return;
-                                  setHistoryVehicleToDelete(v);
-                                }}
+                          </div>
+
+                          {/* Controles de Paginación */}
+                          {totalPages > 1 && (
+                            <div className="flex items-center justify-center gap-4 mt-8 pb-12">
+                              <button 
+                                disabled={historyPage === 1}
+                                onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
                                 className={cn(
-                                  "p-2 transition-all rounded-full relative z-[200] flex items-center gap-1",
-                                  isDarkMode ? "text-slate-500 hover:text-rose-400 hover:bg-slate-800" : "text-slate-400 hover:text-rose-500 hover:bg-rose-50"
+                                  "px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border",
+                                  historyPage === 1 
+                                    ? "opacity-50 cursor-not-allowed grayscale" 
+                                    : "hover:bg-indigo-600 hover:text-white cursor-pointer",
+                                  isDarkMode ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-white border-slate-200 text-slate-600"
                                 )}
-                                title="Eliminar registro"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                Anterior
+                              </button>
+                              <div className="flex items-center gap-2">
+                                {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                                  // Show pages around current page
+                                  let pageNum = i + 1;
+                                  if (totalPages > 5 && historyPage > 3) {
+                                    pageNum = historyPage - 3 + i + 1;
+                                    if (pageNum > totalPages) pageNum = totalPages - (4 - i);
+                                  }
+                                  
+                                  return (
+                                    <button 
+                                      key={pageNum}
+                                      onClick={() => setHistoryPage(pageNum)}
+                                      className={cn(
+                                        "w-8 h-8 rounded-lg font-black text-xs transition-all",
+                                        historyPage === pageNum 
+                                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
+                                          : (isDarkMode ? "bg-slate-800 text-slate-500 hover:text-white" : "bg-white text-slate-400 hover:text-indigo-600 border border-slate-100")
+                                      )}
+                                    >
+                                      {pageNum}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <button 
+                                disabled={historyPage === totalPages}
+                                onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))}
+                                className={cn(
+                                  "px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border",
+                                  historyPage === totalPages 
+                                    ? "opacity-50 cursor-not-allowed grayscale" 
+                                    : "hover:bg-indigo-600 hover:text-white cursor-pointer",
+                                  isDarkMode ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-white border-slate-200 text-slate-600"
+                                )}
+                              >
+                                Siguiente
                               </button>
                             </div>
-                          </div>
-                        );
-                      })
-                    )}
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </motion.div>
               ) : (
@@ -1711,8 +1982,11 @@ export default function App() {
                 >
                   <section>
                     <div className="flex items-center gap-3 mb-6 relative">
-                       <Car className="w-[26px] h-[26px] text-blue-500" />
-                       <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">Cocheras de Autos</h3>
+                       <div className="flex items-center gap-2">
+                         <Car className="w-[26px] h-[26px] text-blue-500" />
+                         <MotorcycleIcon className="w-[18px] h-[18px] text-indigo-400 opacity-60" />
+                       </div>
+                       <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">Cocheras de Autos / Mixtas</h3>
                        <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
                        <svg className="absolute -bottom-1 left-0 w-8 h-px text-blue-500/50" viewBox="0 0 40 1">
                          <line x1="0" y1="0.5" x2="40" y2="0.5" stroke="currentColor" strokeWidth="1" />
@@ -1730,7 +2004,10 @@ export default function App() {
                           <button 
                             key={slotId} 
                             onClick={() => {
-                              setSelectedVehicleType('car');
+                              // Solo pre-seleccionar si no hay vehículo en el slot
+                              if (!vehicle) {
+                                setSelectedVehicleType('car');
+                              }
                               handleSlotClick(slotId, vehicle);
                             }}
                             className={cn(
@@ -1752,7 +2029,7 @@ export default function App() {
                             <span className={cn("absolute top-1 left-1.5 font-black text-[20px] leading-[21.5px] tracking-tighter z-10", vehicle ? (isOccupiedSelected ? "text-white/20" : (vehicle.entryType === 'monthly' ? "text-emerald-400/30" : "text-blue-400/30")) : "text-slate-400")}>#{slotNum}</span>
                             {vehicle ? (
                                <div className="relative w-full h-full p-2 flex flex-col items-center justify-center">
-                                 <motion.div layoutId={`car-body-${vehicle.id}`} className={cn("absolute inset-x-2 inset-y-2 shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden", 
+                                 <motion.div layoutId={`vehicle-body-${vehicle.id}`} className={cn("absolute inset-x-2 inset-y-2 shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden", 
                                    "rounded-lg",
                                    isOccupiedSelected 
                                      ? "bg-gradient-to-br from-white to-slate-200"
@@ -1760,9 +2037,9 @@ export default function App() {
                                          ? (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-400 to-emerald-600" : "bg-gradient-to-br from-blue-400 to-blue-600") 
                                          : (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-500 to-emerald-700" : "bg-gradient-to-br from-blue-500 to-blue-700"))
                                  )}>
-                                   <ParkingIcon className={cn("w-full h-full p-2.5 opacity-80", isOccupiedSelected ? "text-blue-600" : "text-white/20")} />
-                                   <div className="absolute top-1 right-1 opacity-40">
-                                      <Car className="w-2.5 h-2.5 text-white" />
+                                   <ParkingIcon className={cn("w-full h-full p-2.5 opacity-80", isOccupiedSelected ? (vehicle.vehicleType === 'motorcycle' ? "text-indigo-600" : "text-blue-600") : "text-white/20")} />
+                                   <div className="absolute top-1 right-1 opacity-60">
+                                      {vehicle.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-3.5 h-3.5 text-white" /> : <Car className="w-3 h-3 text-white" />}
                                    </div>
                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
                                  </motion.div>
@@ -1787,7 +2064,7 @@ export default function App() {
                   <section>
                     <div className="flex items-center gap-3 mb-6 relative">
                        <MotorcycleIcon className="w-[26px] h-[26px] text-blue-500" />
-                       <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">Cocheras de Motos</h3>
+                       <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">Solo Motos</h3>
                        <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
                        <svg className="absolute -bottom-1 left-0 w-8 h-px text-blue-500/50" viewBox="0 0 40 1">
                          <line x1="0" y1="0.5" x2="40" y2="0.5" stroke="currentColor" strokeWidth="1" />
@@ -1805,7 +2082,9 @@ export default function App() {
                           <button 
                             key={slotId} 
                             onClick={() => {
-                              setSelectedVehicleType('motorcycle');
+                              if (!vehicle) {
+                                setSelectedVehicleType('motorcycle');
+                              }
                               handleSlotClick(slotId, vehicle);
                             }}
                             className={cn(
@@ -1829,7 +2108,7 @@ export default function App() {
                                <div className="relative w-full h-full p-2 flex flex-col items-center justify-center">
                                  {/* Moto Body Shape */}
                                  <motion.div 
-                                   layoutId={`car-body-${vehicle.id}`}
+                                   layoutId={`vehicle-body-${vehicle.id}`}
                                    className={cn(
                                      "absolute w-8 h-5 shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden",
                                      "rounded-lg",
@@ -1841,7 +2120,7 @@ export default function App() {
                                    )}
                                  >
                                    <ParkingIcon className={cn("w-full h-full p-3 opacity-80", isOccupiedSelected ? "text-indigo-600" : "text-white/20")} />
-                                   <div className="absolute top-0.5 right-1 opacity-40">
+                                   <div className="absolute top-0.5 right-1 opacity-60">
                                       <MotorcycleIcon className="w-2.5 h-2.5 text-white" />
                                    </div>
                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
@@ -2057,33 +2336,55 @@ export default function App() {
 
                 <form onSubmit={handleEntry} className="space-y-6">
                   {/* Vehicle Type Selection */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <button 
-                      type="button"
-                      onClick={() => setSelectedVehicleType('car')}
-                      className={cn(
-                        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all group",
-                        selectedVehicleType === 'car' 
-                          ? (isDarkMode ? "bg-blue-500/10 border-blue-500 text-blue-400" : "bg-blue-50 border-blue-500 text-blue-600")
-                          : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-100 border-transparent text-slate-400")
+                  <div className="space-y-4">
+                    <div className={cn(
+                      "p-3 rounded-2xl border text-center flex items-center justify-center gap-2",
+                      selectedSlot.startsWith('M-') 
+                        ? (isDarkMode ? "bg-amber-900/20 border-amber-500/50 text-amber-200" : "bg-amber-50 border-amber-200 text-amber-700")
+                        : (isDarkMode ? "bg-indigo-900/20 border-indigo-500/50 text-indigo-200" : "bg-indigo-50 border-indigo-200 text-indigo-700")
+                    )}>
+                      {selectedSlot.startsWith('M-') ? (
+                        <>
+                          <AlertTriangle className="w-4 h-4" />
+                          <span className="text-[10px] font-black uppercase tracking-widest">SÓLO MOTOS EN ESTA COCHERA</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span className="text-[10px] font-black uppercase tracking-widest">COCHERA MIXTA (AUTOS Y MOTOS)</span>
+                        </>
                       )}
-                    >
-                      <Car className={cn("w-6 h-6 transition-transform group-active:scale-90", selectedVehicleType === 'car' ? "animate-pulse" : "")} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">Auto</span>
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setSelectedVehicleType('motorcycle')}
-                      className={cn(
-                        "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all group",
-                        selectedVehicleType === 'motorcycle' 
-                          ? (isDarkMode ? "bg-blue-500/10 border-blue-500 text-blue-400" : "bg-blue-50 border-blue-500 text-blue-600")
-                          : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-100 border-transparent text-slate-400")
-                      )}
-                    >
-                      <MotorcycleIcon className={cn("w-6 h-6 transition-transform group-active:scale-90", selectedVehicleType === 'motorcycle' ? "animate-pulse" : "")} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">Moto</span>
-                    </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        type="button"
+                        disabled={selectedSlot.startsWith('M-')}
+                        onClick={() => setSelectedVehicleType('car')}
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all group",
+                          selectedVehicleType === 'car' 
+                            ? (isDarkMode ? "bg-blue-500/10 border-blue-500 text-blue-400" : "bg-blue-50 border-blue-500 text-blue-600")
+                            : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-100 border-transparent text-slate-400"),
+                          selectedSlot.startsWith('M-') && "opacity-30 grayscale cursor-not-allowed"
+                        )}
+                      >
+                        <Car className={cn("w-6 h-6 transition-transform group-active:scale-90", selectedVehicleType === 'car' ? "animate-pulse" : "")} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Auto</span>
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setSelectedVehicleType('motorcycle')}
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all group",
+                          selectedVehicleType === 'motorcycle' 
+                            ? (isDarkMode ? "bg-blue-500/10 border-blue-500 text-blue-400" : "bg-blue-50 border-blue-500 text-blue-600")
+                            : (isDarkMode ? "bg-slate-800 border-transparent text-slate-500" : "bg-slate-100 border-transparent text-slate-400")
+                        )}
+                      >
+                        <MotorcycleIcon className={cn("w-6 h-6 transition-transform group-active:scale-90", selectedVehicleType === 'motorcycle' ? "animate-pulse" : "")} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Moto</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Entry Type Toggle */}
