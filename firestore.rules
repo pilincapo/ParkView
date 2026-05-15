@@ -146,6 +146,13 @@ service cloud.firestore {
       allow delete: if isAuthorizedOperator(existing().establishmentId);
     }
 
+    match /history/{historyId} {
+      allow get, list: if isSignedIn() && isAuthorizedOperator(resource.data.establishmentId);
+      allow delete: if isAuthorizedOperator(existing().establishmentId);
+      // Disable create/update as vehicles should be used
+      allow create, update: if false;
+    }
+
     match /settings/parking {
       allow get: if isSignedIn();
       allow write: if isVerified() && (

@@ -97,6 +97,9 @@ export default function App() {
   const [selectedHistoryVehicle, setSelectedHistoryVehicle] = useState<Vehicle | null>(null);
   const [selectedMonthlyPass, setSelectedMonthlyPass] = useState<any | null>(null);
   const [isConfirmingDeletePass, setIsConfirmingDeletePass] = useState(false);
+  const [isAddingMonthlyPass, setIsAddingMonthlyPass] = useState(false);
+  const [monthlyVehicleType, setMonthlyVehicleType] = useState<'car' | 'motorcycle'>('car');
+  const [monthlyAmountState, setMonthlyAmountState] = useState<number>(0);
   const [historyVehicleToDelete, setHistoryVehicleToDelete] = useState<Vehicle | null>(null);
   const [isDeletingHistory, setIsDeletingHistory] = useState(false);
   const plateInputRef = useRef<HTMLInputElement>(null);
@@ -245,6 +248,14 @@ export default function App() {
   }, [user, selectedEstId]);
 
   // Listen to settings for the selected establishment
+  useEffect(() => {
+    if (!user || !selectedEstId) return;
+
+    if (settings) {
+      setMonthlyAmountState(monthlyVehicleType === 'car' ? settings.monthlyRate : settings.motoMonthlyRate);
+    }
+  }, [monthlyVehicleType, settings]);
+
   useEffect(() => {
     if (!user || !selectedEstId) return;
 
@@ -459,6 +470,9 @@ export default function App() {
         establishmentId: selectedEstId
       });
       (e.target as HTMLFormElement).reset();
+      setMonthlyVehicleType('car');
+      setMonthlyAmountState(settings?.monthlyRate || 0);
+      setIsAddingMonthlyPass(false);
       setActiveView('monitor');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'monthlyPasses');
@@ -578,7 +592,7 @@ export default function App() {
     try {
       // Optimistic locally
       setHistory(prev => prev.filter(v => v.id !== id));
-      await deleteDoc(doc(db, 'history', id));
+      await deleteDoc(doc(db, 'vehicles', id));
       console.log('Registro eliminado exitosamente:', id);
       setHistoryVehicleToDelete(null);
     } catch (error) {
@@ -1123,9 +1137,19 @@ export default function App() {
                   className="space-y-8"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="lg:hidden px-2">
+                       <button 
+                         onClick={() => setIsAddingMonthlyPass(true)}
+                         className="w-full py-6 bg-emerald-600 text-white font-black rounded-2xl flex items-center justify-center gap-4 shadow-xl shadow-emerald-500/20 active:scale-95 transition-all text-sm tracking-[0.2em] uppercase"
+                       >
+                         <Plus className="w-6 h-6" />
+                         Nuevo Abonado
+                       </button>
+                    </div>
+
                     {/* Add Monthly Pass Form */}
                     <div className={cn(
-                      "p-8 border shadow-xl transition-colors duration-500",
+                      "hidden lg:block p-8 border shadow-xl transition-colors duration-500",
                       "rounded-lg",
                       isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"
                     )}>
@@ -1161,6 +1185,8 @@ export default function App() {
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Vehículo</label>
                           <select 
                             name="vehicleType"
+                            value={monthlyVehicleType}
+                            onChange={(e) => setMonthlyVehicleType(e.target.value as 'car' | 'motorcycle')}
                             className={cn(
                               "w-full px-5 py-4 border-2 rounded-2xl font-bold text-sm focus:outline-none focus:border-emerald-500 transition-all",
                               isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
@@ -1179,6 +1205,8 @@ export default function App() {
                               type="number" 
                               step="1"
                               required
+                              value={monthlyAmountState}
+                              onChange={(e) => setMonthlyAmountState(Number(e.target.value))}
                               placeholder="0" 
                               className={cn(
                                 "w-full pl-10 pr-5 py-4 border-2 font-bold text-xl focus:outline-none focus:border-emerald-500 transition-all",
@@ -1955,52 +1983,73 @@ export default function App() {
                                     key={v.id} 
                                     onClick={() => setSelectedHistoryVehicle(v)}
                                     className={cn(
-                                      "border p-4 flex items-center justify-between transition-all group cursor-pointer hover:scale-[1.01]",
-                                      "rounded-xl",
+                                      "border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all group cursor-pointer hover:scale-[1.01]",
+                                      "rounded-2xl relative overflow-hidden",
                                       isDarkMode ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-white border-slate-100 hover:border-slate-200 shadow-sm"
                                     )}
                                   >
-                                    <div className="flex items-center gap-4">
+                                    <div className="absolute top-0 left-0 bottom-0 w-1 opacity-20" 
+                                      style={{ backgroundColor: isMonthly ? '#10b981' : '#3b82f6' }} 
+                                    />
+                                    
+                                    <div className="flex items-center gap-5">
                                       <div className={cn(
-                                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm",
+                                        "w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-md group-hover:rotate-3",
                                         isDarkMode 
-                                          ? (isMonthly ? "bg-emerald-900/20 text-emerald-400" : (v.vehicleType === 'motorcycle' ? "bg-indigo-900/20 text-indigo-400" : "bg-blue-900/20 text-blue-400")) 
+                                          ? (isMonthly ? "bg-emerald-500/10 text-emerald-400" : (v.vehicleType === 'motorcycle' ? "bg-indigo-500/10 text-indigo-400" : "bg-blue-500/10 text-blue-400")) 
                                           : (isMonthly ? "bg-emerald-50 text-emerald-600" : (v.vehicleType === 'motorcycle' ? "bg-indigo-50 text-indigo-600" : "bg-blue-50 text-blue-600"))
                                       )}>
-                                        {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-7 h-7" /> : <Car className="w-7 h-7" />}
+                                        {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-8 h-8" /> : <Car className="w-8 h-8" />}
                                       </div>
-                                      <div>
-                                        <div className="flex items-center gap-2 mb-1">
+                                      
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
                                           <h4 className={cn(
-                                            "font-black tracking-widest text-sm relative px-2.5 py-1 rounded bg-slate-950/5 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800 transition-colors uppercase",
-                                            isDarkMode 
-                                              ? (isMonthly ? "text-emerald-400 border-emerald-800/30" : "text-blue-400 border-blue-800/30") 
-                                              : (isMonthly ? "text-emerald-700 border-emerald-100" : "text-blue-700 border-blue-100")
+                                            "font-black tracking-tight text-xl font-mono uppercase",
+                                            isDarkMode ? "text-white" : "text-slate-900"
                                           )}>
                                             {v.plate}
                                           </h4>
                                           <span className={cn(
-                                            "text-[7px] font-black uppercase tracking-[0.2em] px-1.5 py-0.5 rounded border shadow-sm",
-                                            isMonthly ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-blue-500/10 border-blue-500/20 text-blue-500"
+                                            "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shadow-sm flex items-center gap-1",
+                                            isMonthly ? "bg-emerald-500 text-white border-emerald-500" : "bg-slate-100 border-slate-200 text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400"
                                           )}>
-                                            {isMonthly ? 'Abono' : 'Diario'}
+                                            {isMonthly ? <CheckCircle2 className="w-2.5 h-2.5" /> : null}
+                                            {isMonthly ? 'Socio' : 'Ticket'}
                                           </span>
                                         </div>
-                                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tight">
-                                          <Clock className="w-3 h-3" />
-                                          <span>{format(v.entryTime.toDate(), 'HH:mm')}</span>
-                                          <span>→</span>
-                                          <span>{format(v.exitTime.toDate(), 'HH:mm')}</span>
-                                          <span className="opacity-30">|</span>
-                                          <span className="text-slate-500">{h}h {m}m</span>
+                                        <div className="flex items-center gap-3">
+                                          <div className={cn(
+                                            "flex items-center gap-1.5 px-2 py-1 rounded-lg border",
+                                            isDarkMode ? "bg-slate-950/40 border-slate-800 text-slate-400" : "bg-slate-50 border-slate-100 text-slate-500"
+                                          )}>
+                                            <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                                            <div className="flex items-center gap-1 text-[11px] font-bold">
+                                              <span>{format(v.entryTime.toDate(), 'HH:mm')}</span>
+                                              <span className="opacity-30">→</span>
+                                              <span>{format(v.exitTime.toDate(), 'HH:mm')}</span>
+                                            </div>
+                                          </div>
+                                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-md">
+                                            {h > 0 && `${h}h `}{m}m
+                                          </span>
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                      <div className="text-right">
-                                        <p className={cn("font-black text-lg", isMonthly ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-blue-400" : "text-blue-600"))}>{formatCurrency(v.totalAmount)}</p>
-                                        <p className="text-[10px] text-slate-300 dark:text-slate-600 font-black uppercase tracking-tighter">{format(v.exitTime.toDate(), 'dd MMM yyyy', { locale: es })}</p>
+
+                                    <div className="flex items-center justify-between sm:justify-end gap-6 sm:pl-0 pl-16">
+                                      <div className="text-left sm:text-right">
+                                        <p className={cn(
+                                          "font-black text-2xl tracking-tighter leading-none",
+                                          isMonthly ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-blue-400" : "text-blue-600")
+                                        )}>
+                                          {formatCurrency(v.totalAmount)}
+                                        </p>
+                                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">
+                                          {format(v.exitTime.toDate(), 'dd MMM yyyy', { locale: es })}
+                                        </p>
                                       </div>
+                                      
                                       <button
                                         type="button"
                                         onClick={(e) => {
@@ -2009,12 +2058,14 @@ export default function App() {
                                           setHistoryVehicleToDelete(v);
                                         }}
                                         className={cn(
-                                          "p-2.5 transition-all rounded-xl relative z-10 flex items-center justify-center",
-                                          isDarkMode ? "text-slate-500 hover:text-rose-400 hover:bg-slate-800" : "text-slate-300 hover:text-rose-500 hover:bg-rose-50"
+                                          "w-10 h-10 transition-all rounded-xl relative z-10 flex items-center justify-center border",
+                                          isDarkMode 
+                                            ? "text-slate-500 border-slate-800 hover:text-rose-400 hover:bg-rose-400/10 hover:border-rose-400/30" 
+                                            : "text-slate-300 border-slate-100 hover:text-rose-500 hover:bg-rose-50 hover:border-rose-200"
                                         )}
                                         title="Eliminar registro"
                                       >
-                                        <Trash2 className="w-4 h-4" />
+                                        <Trash2 className="w-5 h-5" />
                                       </button>
                                     </div>
                                   </div>
@@ -3094,6 +3145,102 @@ export default function App() {
                 >
                   Cerrar
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {isAddingMonthlyPass && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddingMonthlyPass(false)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-sm shadow-2xl overflow-hidden rounded-3xl",
+                isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-white border border-slate-100"
+              )}
+            >
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-500" />
+              <div className="p-8 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-black uppercase tracking-widest text-emerald-500">Nuevo Abonado</h3>
+                  <button onClick={() => setIsAddingMonthlyPass(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                    <XCircle className="w-6 h-6" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleAddMonthlyPass} className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Patente</label>
+                    <input 
+                      name="plate"
+                      type="text" 
+                      required
+                      placeholder="ABC-123" 
+                      onChange={(e) => {
+                        if (e.target.value.length >= 6 && e.target.value.length <= 8) {
+                          setPlateErrorMonthly(null);
+                        }
+                      }}
+                      className={cn(
+                        "w-full px-5 py-4 border-2 rounded-2xl font-mono text-xl font-black focus:outline-none transition-all uppercase",
+                        plateErrorMonthly ? "border-rose-500" : "focus:border-emerald-500",
+                        isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
+                      )}
+                    />
+                    {plateErrorMonthly && (
+                      <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest mt-1 ml-1">{plateErrorMonthly}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Vehículo</label>
+                    <select 
+                      name="vehicleType"
+                      value={monthlyVehicleType}
+                      onChange={(e) => setMonthlyVehicleType(e.target.value as 'car' | 'motorcycle')}
+                      className={cn(
+                        "w-full px-5 py-4 border-2 rounded-2xl font-bold text-sm focus:outline-none focus:border-emerald-500 transition-all",
+                        isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
+                      )}
+                    >
+                      <option value="car">Auto</option>
+                      <option value="motorcycle">Moto</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Costo Mensual</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-emerald-400">$</span>
+                      <input 
+                        name="amount"
+                        type="number" 
+                        step="1"
+                        required
+                        value={monthlyAmountState}
+                        onChange={(e) => setMonthlyAmountState(Number(e.target.value))}
+                        placeholder="0" 
+                        className={cn(
+                          "w-full pl-10 pr-5 py-4 border-2 rounded-2xl font-bold text-xl focus:outline-none focus:border-emerald-500 transition-all",
+                          isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
+                        )}
+                      />
+                    </div>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full bg-emerald-600 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 text-sm tracking-widest"
+                  >
+                    ACTIVAR ABONO
+                  </button>
+                </form>
               </div>
             </motion.div>
           </div>
