@@ -114,6 +114,7 @@ export default function App() {
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [reportData, setReportData] = useState<Vehicle[]>([]);
   const [reportPlate, setReportPlate] = useState('');
+  const [showReportSuggestions, setShowReportSuggestions] = useState(false);
   const [reportOperator, setReportOperator] = useState('all');
 
   // History filters and pagination
@@ -122,6 +123,7 @@ export default function App() {
   const [historyType, setHistoryType] = useState<'all' | 'car' | 'motorcycle'>('all');
   const [historyEntryType, setHistoryEntryType] = useState<'all' | 'daily' | 'monthly'>('all');
   const [historyPlate, setHistoryPlate] = useState('');
+  const [showHistorySuggestions, setShowHistorySuggestions] = useState(false);
   const PAGE_SIZE = 15;
 
   const [loginEmail, setLoginEmail] = useState('');
@@ -1427,12 +1429,48 @@ export default function App() {
                             type="text" 
                             placeholder="FILTRAR POR PATENTE..."
                             value={reportPlate}
-                            onChange={(e) => setReportPlate(e.target.value.toUpperCase())}
+                            onChange={(e) => {
+                              setReportPlate(e.target.value.toUpperCase());
+                              setShowReportSuggestions(true);
+                            }}
+                            onFocus={() => setShowReportSuggestions(true)}
+                            onBlur={() => setTimeout(() => setShowReportSuggestions(false), 200)}
                             className={cn(
                               "block w-full border-2 border-transparent focus:border-indigo-500 rounded-xl pl-10 pr-4 py-3 text-xs font-black outline-none transition-all shadow-sm uppercase tracking-widest",
                               isDarkMode ? "bg-slate-800 text-slate-100" : "bg-white text-slate-900"
                             )}
                           />
+                          {showReportSuggestions && reportPlate.length >= 1 && (
+                            <div className={cn(
+                              "absolute left-0 right-0 top-full mt-2 z-[100] rounded-xl shadow-xl border overflow-hidden animate-in fade-in slide-in-from-top-2 max-h-48 overflow-y-auto",
+                              isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"
+                            )}>
+                              {Array.from(new Set(reportData.map(v => v.plate)))
+                                .filter(p => p.toUpperCase().includes(reportPlate.toUpperCase()) && p.toUpperCase() !== reportPlate.toUpperCase())
+                                .slice(0, 8)
+                                .map(s => (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                      setReportPlate(s);
+                                      setShowReportSuggestions(false);
+                                    }}
+                                    className={cn(
+                                      "w-full px-4 py-3 text-left font-mono font-bold text-sm border-b last:border-b-0 transition-colors flex items-center justify-between group",
+                                      isDarkMode ? "border-slate-700/50 hover:bg-slate-700 text-slate-300" : "border-slate-100 hover:bg-slate-50 text-slate-700"
+                                    )}
+                                  >
+                                    <span>{s}</span>
+                                    <span className={cn(
+                                      "text-[9px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity",
+                                      isDarkMode ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-50 text-indigo-600"
+                                    )}>Seleccionar</span>
+                                  </button>
+                                ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="space-y-1 w-full md:w-auto min-w-[200px]">
@@ -1760,18 +1798,54 @@ export default function App() {
                       "p-4 rounded-2xl border flex flex-col md:flex-row gap-4 items-center transition-all",
                       isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-sm"
                     )}>
-                      <div className="relative flex-1 w-full">
+                      <div className="relative flex-1 w-full z-20">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input 
                           type="text"
                           placeholder="BUSCAR PATENTE EN HISTORIAL..."
                           value={historyPlate}
-                          onChange={(e) => setHistoryPlate(e.target.value.toUpperCase())}
+                          onChange={(e) => {
+                            setHistoryPlate(e.target.value.toUpperCase());
+                            setShowHistorySuggestions(true);
+                          }}
+                          onFocus={() => setShowHistorySuggestions(true)}
+                          onBlur={() => setTimeout(() => setShowHistorySuggestions(false), 200)}
                           className={cn(
                             "w-full pl-10 pr-4 py-2.5 rounded-xl text-xs font-black outline-none border-2 border-transparent transition-all",
                             isDarkMode ? "bg-slate-800 text-white focus:border-indigo-500" : "bg-slate-50 text-slate-900 focus:border-indigo-500"
                           )}
                         />
+                        {showHistorySuggestions && historyPlate.length >= 1 && (
+                          <div className={cn(
+                            "absolute left-0 right-0 top-full mt-2 z-[100] rounded-xl shadow-xl border overflow-hidden animate-in fade-in slide-in-from-top-2 max-h-48 overflow-y-auto",
+                            isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"
+                          )}>
+                            {Array.from(new Set(history.map(v => v.plate)))
+                              .filter(p => p.toUpperCase().includes(historyPlate.toUpperCase()) && p.toUpperCase() !== historyPlate.toUpperCase())
+                              .slice(0, 8)
+                              .map(s => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    setHistoryPlate(s);
+                                    setShowHistorySuggestions(false);
+                                  }}
+                                  className={cn(
+                                    "w-full px-4 py-3 text-left font-mono font-bold text-sm border-b last:border-b-0 transition-colors flex items-center justify-between group",
+                                    isDarkMode ? "border-slate-700/50 hover:bg-slate-700 text-slate-300" : "border-slate-100 hover:bg-slate-50 text-slate-700"
+                                  )}
+                                >
+                                  <span>{s}</span>
+                                  <span className={cn(
+                                    "text-[9px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity",
+                                    isDarkMode ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-50 text-indigo-600"
+                                  )}>Seleccionar</span>
+                                </button>
+                              ))}
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-2 w-full md:w-auto">
                         <select 
@@ -2499,8 +2573,8 @@ export default function App() {
                       )}
                       {showSuggestions && plate.length >= 2 && (
                         <div className={cn(
-                          "absolute left-0 right-0 top-full mt-1 z-[100] rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2 max-h-40 overflow-y-auto",
-                          isDarkMode ? "bg-slate-700 border-slate-600" : "bg-white border-slate-200"
+                          "absolute left-0 right-0 top-full mt-2 z-[100] rounded-xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2 max-h-48 overflow-y-auto",
+                          isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"
                         )}>
                           {allHistoricalPlates
                             .filter(p => p.toUpperCase().includes(plate.toUpperCase()) && p.toUpperCase() !== plate.toUpperCase())
@@ -2509,16 +2583,21 @@ export default function App() {
                               <button
                                 key={s}
                                 type="button"
+                                onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => {
                                   setPlate(s);
                                   setShowSuggestions(false);
                                 }}
                                 className={cn(
-                                  "w-full px-6 py-4 text-left font-mono font-black text-xl border-b last:border-b-0 transition-colors uppercase",
-                                  isDarkMode ? "border-slate-600 hover:bg-slate-600 text-white" : "border-slate-50 hover:bg-slate-50 text-slate-900"
+                                  "w-full px-6 py-4 text-left font-mono font-black text-xl border-b last:border-b-0 transition-colors uppercase group flex items-center justify-between",
+                                  isDarkMode ? "border-slate-700/50 hover:bg-slate-700 text-slate-300" : "border-slate-100 hover:bg-slate-50 text-slate-700"
                                 )}
                               >
-                                {s}
+                                <span>{s}</span>
+                                <span className={cn(
+                                  "text-[10px] px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity font-sans tracking-widest",
+                                  isDarkMode ? "bg-slate-800 text-indigo-300" : "bg-white text-indigo-600 shadow-sm"
+                                )}>Seleccionar</span>
                               </button>
                             ))}
                         </div>
