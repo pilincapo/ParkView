@@ -38,6 +38,7 @@ import {
   Sun,
   Moon,
   ChevronDown,
+  ChevronRight,
   Building2,
   Users,
   AlertCircle,
@@ -94,6 +95,8 @@ export default function App() {
   const [editableAmount, setEditableAmount] = useState<number>(0);
   const [monthlyPasses, setMonthlyPasses] = useState<any[]>([]);
   const [selectedHistoryVehicle, setSelectedHistoryVehicle] = useState<Vehicle | null>(null);
+  const [selectedMonthlyPass, setSelectedMonthlyPass] = useState<any | null>(null);
+  const [isConfirmingDeletePass, setIsConfirmingDeletePass] = useState(false);
   const [historyVehicleToDelete, setHistoryVehicleToDelete] = useState<Vehicle | null>(null);
   const [isDeletingHistory, setIsDeletingHistory] = useState(false);
   const plateInputRef = useRef<HTMLInputElement>(null);
@@ -462,6 +465,45 @@ export default function App() {
     }
   };
 
+  const safeToDate = (date: any) => {
+    if (!date) return new Date();
+    if (typeof date.toDate === 'function') return date.toDate();
+    if (date instanceof Date) return date;
+    if (typeof date === 'string' || typeof date === 'number') return new Date(date);
+    return new Date();
+  };
+
+  const handleRenewPass = async (passId: string, currentEndDate: any) => {
+    try {
+      const current = safeToDate(currentEndDate);
+      const now = new Date();
+      // Si ya venció, renovamos desde hoy. Si no venció, extendemos un mes desde el vencimiento.
+      const baseDate = current > now ? current : now;
+      
+      const newEndDate = new Date(baseDate);
+      newEndDate.setMonth(baseDate.getMonth() + 1);
+      
+      await updateDoc(doc(db, 'monthlyPasses', passId), {
+        endDate: Timestamp.fromDate(newEndDate),
+        updatedAt: serverTimestamp()
+      });
+      setSelectedMonthlyPass(null);
+      setIsConfirmingDeletePass(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `monthlyPasses/${passId}`);
+    }
+  };
+
+  const handleDeletePass = async (passId: string) => {
+    try {
+      await deleteDoc(doc(db, 'monthlyPasses', passId));
+      setSelectedMonthlyPass(null);
+      setIsConfirmingDeletePass(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `monthlyPasses/${passId}`);
+    }
+  };
+
   const calculateAmount = (v: Vehicle) => {
     if (!settings || !v.entryTime) return 0;
     if (v.entryType === 'monthly') return 0;
@@ -730,15 +772,15 @@ export default function App() {
               key={v.id}
               onClick={() => setActiveView(v.id as any)}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-3.5 transition-all group relative",
+                "w-full flex items-center gap-3 px-4 py-2.5 transition-all group relative",
                 "rounded-xl",
                 activeView === v.id 
                   ? (isDarkMode ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-sm" : "bg-indigo-50 text-indigo-600 border border-indigo-100 shadow-sm") 
                   : (isDarkMode ? "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50")
               )}
             >
-              <v.icon className={cn("w-5 h-5", activeView === v.id ? "scale-110" : "group-hover:scale-110 transition-transform")} />
-              <span className="text-sm font-bold tracking-tight">{v.label}</span>
+              <v.icon className={cn("w-4.5 h-4.5", activeView === v.id ? "scale-110" : "group-hover:scale-110 transition-transform")} />
+              <span className="text-[13px] font-bold tracking-tight">{v.label}</span>
               {activeView === v.id && (
                 <motion.div layoutId="sidebar-indicator" className="absolute left-0 w-1 h-6 bg-indigo-500 rounded-full" />
               )}
@@ -1169,10 +1211,11 @@ export default function App() {
                            </div>
                         ) : (
                           monthlyPasses.map(pass => (
-                            <div 
+                            <button 
                               key={pass.id}
+                              onClick={() => setSelectedMonthlyPass(pass)}
                               className={cn(
-                                "p-5 border flex items-center justify-between group hover:border-emerald-500/50 transition-all",
+                                "w-full p-5 border flex items-center justify-between group hover:border-emerald-500/50 transition-all text-left",
                                 "rounded-lg",
                                 isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-sm"
                               )}
@@ -1187,8 +1230,8 @@ export default function App() {
                                      <div className="text-left">
                                         <h4 className="font-black text-lg tracking-wider bg-gradient-to-r from-emerald-500 to-emerald-400 bg-clip-text text-transparent">{pass.plate}</h4>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight flex items-center gap-1.5">
-                                          <HistoryIcon className="w-3 h-3" />
-                                          Vence: {pass.endDate ? format(pass.endDate.toDate(), 'dd MMM yyyy', { locale: es }) : '---'}
+                                          <Clock className="w-3 h-3" />
+                                          Vence: {pass.endDate ? format(safeToDate(pass.endDate), 'dd MMM yyyy', { locale: es }) : '---'}
                                         </p>
                                      </div>
                                   </div>
@@ -1197,25 +1240,12 @@ export default function App() {
                                         <p className="font-black text-emerald-500 mb-1">{formatCurrency(pass.amount)}</p>
                                         <div className="flex items-center gap-1 justify-end">
                                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                          <span className="text-[8px] font-black uppercase tracking-widest text-emerald-500">Activo</span>
+                                          <span className="text-[8px] font-black uppercase tracking-widest text-emerald-500">Abonado</span>
                                         </div>
                                      </div>
-                                     <button 
-                                       onClick={async () => {
-                                         if (confirm('¿Eliminar este abono mensual?')) {
-                                           try {
-                                             await deleteDoc(doc(db, 'monthlyPasses', pass.id));
-                                           } catch (error) {
-                                             handleFirestoreError(error, OperationType.DELETE, `monthlyPasses/${pass.id}`);
-                                           }
-                                         }
-                                       }}
-                                       className="p-2 rounded-lg hover:bg-red-500/10 text-slate-300 hover:text-red-500 transition-colors"
-                                     >
-                                        <XCircle className="w-5 h-5" />
-                                     </button>
+                                     <ChevronRight className="w-5 h-5 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                                   </div>
-                            </div>
+                            </button>
                           ))
                         )}
                       </div>
@@ -2094,7 +2124,7 @@ export default function App() {
                             }}
                             className={cn(
                               "aspect-[3/4] flex flex-col items-center justify-center gap-1 transition-all border font-mono text-[10px] relative overflow-hidden group hover:scale-[1.02] active:scale-95",
-                              "rounded-sm",
+                              "rounded-lg shadow-md",
                               vehicle 
                                 ? isOccupiedSelected 
                                   ? (vehicle.entryType === 'monthly' ? "bg-emerald-600 border-emerald-400 text-white ring-4 ring-emerald-500/20 shadow-xl" : "bg-blue-600 border-blue-400 text-white ring-4 ring-blue-500/20 shadow-xl")
@@ -2135,10 +2165,17 @@ export default function App() {
                                    </div>
                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
                                  </motion.div>
-                                 <div className="relative z-10 flex flex-col items-center">
-                                   <span className={cn("font-black text-[10px] tracking-tight transition-colors drop-shadow-sm", isOccupiedSelected ? "text-blue-900" : "text-white")}>{vehicle.plate}</span>
+                                 <div className="relative z-10 flex flex-col items-center mt-12 w-full px-1">
+                                   <span className={cn(
+                                     "font-black text-[9px] tracking-tight transition-colors drop-shadow-sm px-2 py-0.5 rounded-lg shadow-lg border",
+                                     isOccupiedSelected 
+                                       ? "bg-white text-blue-600 border-blue-100" 
+                                       : (isDarkMode ? "bg-slate-950/80 border-slate-700/50 text-white" : "bg-white border-slate-200 text-slate-900")
+                                   )}>
+                                     {vehicle.plate}
+                                   </span>
                                    {vehicle.entryType === 'monthly' && (
-                                     <div className="w-1.5 h-1.5 bg-white rounded-full mt-1 animate-pulse shadow-sm" title="Abonado" />
+                                     <div className="w-1.5 h-1.5 bg-white rounded-full mt-1.5 animate-pulse shadow-sm" title="Abonado" />
                                    )}
                                  </div>
                                </div>
@@ -2181,7 +2218,7 @@ export default function App() {
                             }}
                             className={cn(
                               "aspect-[3/4] flex flex-col items-center justify-center gap-1 transition-all border font-mono text-[10px] relative overflow-hidden group hover:scale-[1.02] active:scale-95",
-                              "rounded-sm",
+                              "rounded-lg shadow-md",
                               vehicle 
                                 ? isOccupiedSelected 
                                   ? (vehicle.entryType === 'monthly' ? "bg-emerald-600 border-emerald-400 text-white ring-4 ring-emerald-500/20 shadow-xl" : "bg-blue-600 border-blue-400 text-white ring-4 ring-blue-500/20 shadow-xl")
@@ -2223,10 +2260,17 @@ export default function App() {
                                    </div>
                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
                                  </motion.div>
-                                 <div className="relative z-10 flex flex-col items-center mt-8">
-                                   <span className={cn("font-black text-[9px] tracking-tight drop-shadow-sm", isOccupiedSelected ? "text-blue-900" : "text-white")}>{vehicle.plate}</span>
+                                 <div className="relative z-10 flex flex-col items-center mt-12 w-full px-1">
+                                   <span className={cn(
+                                     "font-black text-[9px] tracking-tight transition-colors drop-shadow-sm px-2 py-0.5 rounded-lg shadow-lg border",
+                                     isOccupiedSelected 
+                                       ? "bg-white text-indigo-600 border-indigo-100" 
+                                       : (isDarkMode ? "bg-slate-950/80 border-slate-700/50 text-white" : "bg-white border-slate-200 text-slate-900")
+                                   )}>
+                                     {vehicle.plate}
+                                   </span>
                                    {vehicle.entryType === 'monthly' && (
-                                     <div className="w-1.5 h-1.5 bg-white rounded-full mt-0.5 animate-pulse shadow-sm" title="Abonado" />
+                                     <div className="w-1.5 h-1.5 bg-white rounded-full mt-1.5 animate-pulse shadow-sm" title="Abonado" />
                                    )}
                                  </div>
                                </div>
@@ -2379,27 +2423,6 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* Mobile Bottom Nav */}
-      <div className="md:hidden fixed bottom-6 left-6 right-6 z-[60] flex items-center justify-between p-2 bg-slate-900/90 dark:bg-slate-800/90 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl">
-        {[
-          { id: 'monitor', icon: Activity, label: 'Inicio' },
-          { id: 'history', icon: HistoryIcon, label: 'Historial' },
-          { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
-        ].map((v) => (
-          <button 
-            key={v.id}
-            onClick={() => setActiveView(v.id as any)}
-            className={cn(
-              "flex-1 flex flex-col items-center justify-center py-2 transition-all gap-1",
-              activeView === v.id ? "text-indigo-400" : "text-slate-500"
-            )}
-          >
-            <v.icon className={cn("w-5 h-5", activeView === v.id ? "scale-110" : "")} />
-            <span className="text-[7px] font-black uppercase tracking-widest">{v.label}</span>
-          </button>
-        ))}
-      </div>
 
       {/* Entry Modal */}
       <AnimatePresence>
@@ -2970,7 +2993,113 @@ export default function App() {
             </motion.div>
           </div>
         )}
+
+        {selectedMonthlyPass && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setSelectedMonthlyPass(null);
+                setIsConfirmingDeletePass(false);
+              }}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "relative w-full max-w-sm shadow-2xl overflow-hidden rounded-3xl",
+                isDarkMode ? "bg-slate-900 border border-slate-800" : "bg-white border border-slate-100"
+              )}
+            >
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-500" />
+              <div className="p-8 space-y-8">
+                <div className="flex flex-col items-center gap-4">
+                  <div className={cn(
+                    "w-16 h-16 rounded-full flex items-center justify-center",
+                    isDarkMode ? "bg-emerald-950/30 text-emerald-400" : "bg-emerald-50 text-emerald-600"
+                  )}>
+                    {selectedMonthlyPass.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-8 h-8" /> : <Car className="w-8 h-8" />}
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-3xl font-black font-mono tracking-wider mb-1 uppercase">{selectedMonthlyPass.plate}</h3>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Gestión de Abono</p>
+                  </div>
+                </div>
+
+                <div className={cn("p-4 rounded-2xl border text-center space-y-1", isDarkMode ? "bg-slate-800/40 border-slate-800" : "bg-slate-50 border-slate-100")}>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Vencimiento actual</p>
+                  <p className="text-sm font-bold text-emerald-500 flex items-center justify-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    {selectedMonthlyPass.endDate ? format(safeToDate(selectedMonthlyPass.endDate), 'dd/MM/yyyy', { locale: es }) : '---'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  {!isConfirmingDeletePass ? (
+                    <>
+                      <button
+                        onClick={() => handleRenewPass(selectedMonthlyPass.id, selectedMonthlyPass.endDate)}
+                        className="w-full py-5 bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 rounded-xl"
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                        Renovar por 30 días
+                      </button>
+                      
+                      <button
+                        onClick={() => setIsConfirmingDeletePass(true)}
+                        className={cn(
+                          "w-full py-4 font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 rounded-xl border-2",
+                          isDarkMode 
+                            ? "bg-rose-600/10 border-rose-500/20 text-rose-500 hover:bg-rose-600 hover:text-white hover:border-rose-600" 
+                            : "bg-rose-50 border-rose-100 text-rose-600 hover:bg-rose-600 hover:text-white hover:border-rose-600"
+                        )}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Eliminar abono
+                      </button>
+                    </>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-black uppercase text-center text-rose-500 tracking-widest mb-4">¿Confirmas la eliminación definitiva?</p>
+                      <button
+                        onClick={() => {
+                          handleDeletePass(selectedMonthlyPass.id);
+                          setIsConfirmingDeletePass(false);
+                        }}
+                        className="w-full py-4 bg-rose-600 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-rose-500/20 hover:bg-rose-700 transition-all flex items-center justify-center gap-3 rounded-xl"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                        Confirmar Eliminación
+                      </button>
+                      <button
+                        onClick={() => setIsConfirmingDeletePass(false)}
+                        className="w-full py-3 text-slate-400 font-bold text-[10px] uppercase tracking-widest"
+                      >
+                        Volver atrás
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={() => {
+                    setSelectedMonthlyPass(null);
+                    setIsConfirmingDeletePass(false);
+                  }}
+                  className="w-full text-slate-400 hover:text-slate-600 font-bold text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
+
 
       {/* Bottom Nav (Mobile Only) */}
       <nav className={cn(
@@ -2979,9 +3108,9 @@ export default function App() {
       )}>
         {[
           { id: 'monitor', icon: Activity, label: 'Panel' },
-          { id: 'reports', icon: Search, label: 'Reportes' },
-          { id: 'help', icon: HelpCircle, label: 'Ayuda' },
           { id: 'history', icon: HistoryIcon, label: 'Historial' },
+          { id: 'monthly', icon: CheckCircle2, label: 'Abonados' },
+          { id: 'reports', icon: Search, label: 'Reportes' },
           { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
         ].map((v) => (
           <button 
@@ -2995,14 +3124,14 @@ export default function App() {
             )}
           >
             <div className={cn(
-              "w-12 h-8 rounded-full flex items-center justify-center transition-all duration-300",
+              "w-10 h-7 rounded-full flex items-center justify-center transition-all duration-300",
               activeView === v.id 
                 ? (isDarkMode ? "bg-indigo-900/40 shadow-sm" : "bg-indigo-100 shadow-sm") 
                 : (isDarkMode ? "active:bg-slate-800" : "active:bg-slate-100")
             )}>
-              <v.icon className={cn("w-5 h-5 transition-transform", activeView === v.id ? "scale-110" : "")} />
+              <v.icon className={cn("w-4.5 h-4.5 transition-transform", activeView === v.id ? "scale-110" : "")} />
             </div>
-            <span className="text-[9px] font-black uppercase tracking-tighter">{v.label}</span>
+            <span className="text-[8.5px] font-black uppercase tracking-tighter">{v.label}</span>
             {activeView === v.id && (
                <motion.div 
                  layoutId="active-mobile-pill"
