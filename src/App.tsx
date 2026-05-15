@@ -48,7 +48,10 @@ import {
   Trash2,
   CreditCard,
   TrendingUp,
-  Smartphone
+  Smartphone,
+  Timer,
+  Calendar,
+  Monitor
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -98,6 +101,8 @@ export default function App() {
   const [selectedMonthlyPass, setSelectedMonthlyPass] = useState<any | null>(null);
   const [isConfirmingDeletePass, setIsConfirmingDeletePass] = useState(false);
   const [isAddingMonthlyPass, setIsAddingMonthlyPass] = useState(false);
+  const [lastActionSlotId, setLastActionSlotId] = useState<string | null>(null);
+  const [lastActionType, setLastActionType] = useState<'entry' | 'exit' | null>(null);
   const [monthlyVehicleType, setMonthlyVehicleType] = useState<'car' | 'motorcycle'>('car');
   const [monthlyAmountState, setMonthlyAmountState] = useState<number>(0);
   const [historyVehicleToDelete, setHistoryVehicleToDelete] = useState<Vehicle | null>(null);
@@ -418,6 +423,9 @@ export default function App() {
         ownerId: user.uid,
         establishmentId: selectedEstId
       });
+      setLastActionSlotId(selectedSlot);
+      setLastActionType('entry');
+      setTimeout(() => setLastActionSlotId(null), 1000);
       setPlate('');
       setSelectedSlot('');
       setSelectedEntryType('daily');
@@ -575,6 +583,9 @@ export default function App() {
         exitTime: serverTimestamp(),
         totalAmount: editableAmount
       });
+      setLastActionSlotId(confirmingExitVehicle.slotId);
+      setLastActionType('exit');
+      setTimeout(() => setLastActionSlotId(null), 1000);
       setConfirmingExitVehicle(null);
       setConfirmingExitId(null);
       setActiveView('monitor');
@@ -901,16 +912,16 @@ export default function App() {
             </div>
 
             <button
-              onClick={() => setActiveView('help')}
+              onClick={() => setActiveView('settings')}
               className={cn(
                 "p-2.5 rounded-xl transition-all border group relative",
-                activeView === 'help'
+                activeView === 'settings'
                   ? (isDarkMode ? "bg-indigo-600/20 border-indigo-500/50 text-indigo-400" : "bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm")
                   : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-400 hover:text-indigo-400" : "bg-white border-slate-100 text-slate-400 hover:text-indigo-600 shadow-sm")
               )}
-              title="Guía de Ayuda"
+              title="Configuración"
             >
-              <HelpCircle className="w-5 h-5" />
+              <SettingsIcon className="w-5 h-5" />
             </button>
 
             <button
@@ -1283,13 +1294,25 @@ export default function App() {
               ) : activeView === 'settings' ? (
                 <motion.div 
                   key="settings"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="max-w-md"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.02 }}
+                  className="max-w-4xl mx-auto space-y-6 sm:space-y-10 pb-20"
                 >
-                  <div className="space-y-8">
-                    <form onSubmit={(e) => {
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
+                    <div className="space-y-1">
+                      <h2 className={cn("text-3xl font-black uppercase tracking-tighter", isDarkMode ? "text-white" : "text-slate-900")}>Configuración</h2>
+                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">{establishments.find(e => e.id === selectedEstId)?.name || 'Parking System'}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <div className={cn("px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest", isDarkMode ? "bg-slate-900 border-slate-800 text-slate-500" : "bg-white border-slate-100 text-slate-400")}>
+                         Sincronización en la nube
+                       </div>
+                    </div>
+                  </div>
+
+                  <form 
+                    onSubmit={(e) => {
                       e.preventDefault();
                       const formData = new FormData(e.currentTarget);
                       updateSettings(
@@ -1301,157 +1324,195 @@ export default function App() {
                         Number(formData.get('monthlyRate')),
                         Number(formData.get('motoMonthlyRate'))
                       );
-                    }} className="space-y-6">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Tarifa Auto (Hora)</h3>
-                          <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-indigo-400">$</span>
-                            <input 
-                              name="carRate"
-                              type="number"
-                              step="1"
-                              defaultValue={settings?.hourlyRate}
-                              className={cn(
-                                "w-full pl-10 pr-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
-                                "rounded-md",
-                                isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                              )}
-                            />
+                    }}
+                    className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8"
+                  >
+                    {/* Rates Column */}
+                    <div className="space-y-6">
+                      <div className={cn(
+                        "p-6 sm:p-8 rounded-[2rem] border transition-all",
+                        isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-white border-slate-100 shadow-sm"
+                      )}>
+                        <div className="flex items-center gap-3 mb-8">
+                          <div className="w-10 h-10 rounded-2xl bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                            <CreditCard className="w-5 h-5" />
                           </div>
+                          <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">Tarifas Autos</h3>
                         </div>
-                        <div className="space-y-2">
-                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Tarifa Auto (1/2 Hora)</h3>
-                          <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-indigo-400">$</span>
-                            <input 
-                              name="carHalfHourRate"
-                              type="number"
-                              step="1"
-                              defaultValue={settings?.carHalfHourRate || Math.ceil((settings?.hourlyRate || 1000) / 2)}
-                              className={cn(
-                                "w-full pl-10 pr-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
-                                "rounded-md",
-                                isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                              )}
-                            />
+
+                        <div className="space-y-6">
+                          <div className="space-y-2">
+                             <div className="flex justify-between items-center px-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hora Completa</label>
+                                <span className="text-[10px] font-bold text-indigo-500">Estandar</span>
+                             </div>
+                             <div className="relative group">
+                                <span className={cn("absolute left-4 top-1/2 -translate-y-1/2 font-black text-xl", isDarkMode ? "text-indigo-400" : "text-indigo-600")}>$</span>
+                                <input 
+                                  name="carRate"
+                                  type="number"
+                                  step="1"
+                                  defaultValue={settings?.hourlyRate}
+                                  className={cn(
+                                    "w-full pl-10 pr-4 py-5 border-2 rounded-2xl font-black text-2xl focus:outline-none transition-all",
+                                    isDarkMode ? "bg-slate-950 border-slate-800 text-white focus:border-indigo-500/50" : "bg-slate-50 border-slate-100 text-slate-900 focus:border-indigo-500"
+                                  )}
+                                />
+                             </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Media Hora</label>
+                               <div className="relative">
+                                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
+                                  <input 
+                                    name="carHalfHourRate"
+                                    type="number"
+                                    step="1"
+                                    defaultValue={settings?.carHalfHourRate || Math.ceil((settings?.hourlyRate || 1000) / 2)}
+                                    className={cn(
+                                      "w-full pl-8 pr-4 py-4 border-2 rounded-xl font-bold text-lg focus:outline-none transition-all",
+                                      isDarkMode ? "bg-slate-950 border-slate-800 text-white focus:border-indigo-500/30" : "bg-slate-50 border-slate-100 text-slate-900 focus:border-indigo-500"
+                                    )}
+                                  />
+                               </div>
+                            </div>
+                            <div className="space-y-2">
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Abono Mensual</label>
+                               <div className="relative">
+                                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
+                                  <input 
+                                    name="monthlyRate"
+                                    type="number"
+                                    step="1"
+                                    defaultValue={settings?.monthlyRate}
+                                    className={cn(
+                                      "w-full pl-8 pr-4 py-4 border-2 rounded-xl font-bold text-lg focus:outline-none transition-all",
+                                      isDarkMode ? "bg-slate-950 border-slate-800 text-white focus:border-indigo-500/30" : "bg-slate-50 border-slate-100 text-slate-900 focus:border-indigo-500"
+                                    )}
+                                  />
+                               </div>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="space-y-2">
-                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Tarifa Diaria Moto</h3>
-                          <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-indigo-400">$</span>
-                            <input 
-                              name="motoDailyRate"
-                              type="number"
-                              step="1"
-                              defaultValue={settings?.motoDailyRate || settings?.motoHourlyRate}
-                              className={cn(
-                                "w-full pl-10 pr-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
-                                "rounded-md",
-                                isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                              )}
-                            />
+                      <div className={cn(
+                        "p-6 sm:p-8 rounded-[2rem] border transition-all",
+                        isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-white border-slate-100 shadow-sm"
+                      )}>
+                        <div className="flex items-center gap-3 mb-8">
+                          <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                            <MotorcycleIcon className="w-5 h-5" />
+                          </div>
+                          <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">Tarifas Motos</h3>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Ticket Diario</label>
+                             <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
+                                <input 
+                                  name="motoDailyRate"
+                                  type="number"
+                                  step="1"
+                                  defaultValue={settings?.motoDailyRate || settings?.motoHourlyRate}
+                                  className={cn(
+                                    "w-full pl-8 pr-4 py-4 border-2 rounded-xl font-bold text-lg focus:outline-none transition-all",
+                                    isDarkMode ? "bg-slate-950 border-slate-800 text-white focus:border-emerald-500/30" : "bg-slate-50 border-slate-100 text-slate-900 focus:border-emerald-500"
+                                  )}
+                                />
+                             </div>
+                          </div>
+                          <div className="space-y-2">
+                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Abono Mensual</label>
+                             <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
+                                <input 
+                                  name="motoMonthlyRate"
+                                  type="number"
+                                  step="1"
+                                  defaultValue={settings?.motoMonthlyRate}
+                                  className={cn(
+                                    "w-full pl-8 pr-4 py-4 border-2 rounded-xl font-bold text-lg focus:outline-none transition-all",
+                                    isDarkMode ? "bg-slate-950 border-slate-800 text-white focus:border-emerald-500/30" : "bg-slate-50 border-slate-100 text-slate-900 focus:border-emerald-500"
+                                  )}
+                                />
+                             </div>
                           </div>
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Tarifa Mensual Auto</h3>
-                          <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-indigo-400">$</span>
-                            <input 
-                              name="monthlyRate"
-                              type="number"
-                              step="1"
-                              defaultValue={settings?.monthlyRate}
-                              className={cn(
-                                "w-full pl-10 pr-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
-                                "rounded-md",
-                                isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                              )}
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Tarifa Mensual Moto</h3>
-                          <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-indigo-400">$</span>
-                            <input 
-                              name="motoMonthlyRate"
-                              type="number"
-                              step="1"
-                              defaultValue={settings?.motoMonthlyRate}
-                              className={cn(
-                                "w-full pl-10 pr-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
-                                "rounded-md",
-                                isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                              )}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Cocheras Autos</h3>
-                          <div className="relative">
-                            <input 
-                              name="carSlots"
-                              type="number"
-                              step="1"
-                              defaultValue={settings?.carSlots}
-                              className={cn(
-                                "w-full px-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
-                                "rounded-md",
-                                isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                              )}
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <h3 className={cn("text-[10px] font-black uppercase text-slate-400 tracking-widest")}>Cocheras Motos</h3>
-                          <div className="relative">
-                            <input 
-                              name="motoSlots"
-                              type="number"
-                              step="1"
-                              defaultValue={settings?.motoSlots}
-                              className={cn(
-                                "w-full px-4 py-4 border font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all",
-                                "rounded-md",
-                                isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                              )}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <button 
-                        type="submit"
-                        className={cn(
-                          "w-full font-bold py-4 transition-all shadow-lg rounded-md",
-                          isDarkMode ? "bg-indigo-600 text-white hover:bg-indigo-500" : "bg-slate-900 text-white hover:bg-slate-800"
-                        )}
-                      >
-                        GUARDAR CAMBIOS
-                      </button>
-                    </form>
-                    
-                    <div className={cn(
-                      "p-4 rounded-xl border flex gap-3",
-                      isDarkMode ? "bg-amber-900/20 border-amber-800/30" : "bg-amber-50 border-amber-100"
-                    )}>
-                      <div className="w-5 h-5 text-amber-600 shrink-0">⚠</div>
-                      <p className={cn("text-[11px] leading-tight", isDarkMode ? "text-amber-200 opacity-60" : "text-amber-900 opacity-80")}>
-                        Modificar las tarifas o capacidad durante la operación requiere atención para evitar discrepancias en los registros activos.
-                      </p>
                     </div>
-                  </div>
+
+                    {/* Capacity Column */}
+                    <div className="space-y-6">
+                      <div className={cn(
+                        "p-6 sm:p-8 rounded-[2rem] border transition-all",
+                        isDarkMode ? "bg-slate-900/50 border-slate-800" : "bg-white border-slate-100 shadow-sm"
+                      )}>
+                        <div className="flex items-center gap-3 mb-8">
+                          <div className="w-10 h-10 rounded-2xl bg-blue-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/20">
+                            <Monitor className="w-5 h-5" />
+                          </div>
+                          <h3 className="font-black text-xs uppercase tracking-[0.2em] text-slate-500">Capacidad Total</h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Cocheras Autos</label>
+                              <input 
+                                name="carSlots"
+                                type="number"
+                                step="1"
+                                defaultValue={settings?.carSlots}
+                                className={cn(
+                                  "w-full px-5 py-5 border-2 rounded-2xl font-black text-2xl focus:outline-none transition-all",
+                                  isDarkMode ? "bg-slate-950 border-slate-800 text-white focus:border-blue-500/30" : "bg-slate-50 border-slate-100 text-slate-900 focus:border-blue-500"
+                                )}
+                              />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Cocheras Motos</label>
+                              <input 
+                                name="motoSlots"
+                                type="number"
+                                step="1"
+                                defaultValue={settings?.motoSlots}
+                                className={cn(
+                                  "w-full px-5 py-5 border-2 rounded-2xl font-black text-2xl focus:outline-none transition-all",
+                                  isDarkMode ? "bg-slate-950 border-slate-800 text-white focus:border-blue-500/30" : "bg-slate-50 border-slate-100 text-slate-900 focus:border-blue-500"
+                                )}
+                              />
+                           </div>
+                        </div>
+                      </div>
+
+                      <div className={cn(
+                        "p-8 rounded-[2rem] border overflow-hidden relative group",
+                        isDarkMode ? "bg-slate-900/40 border-slate-800" : "bg-slate-900 border-slate-800"
+                      )}>
+                         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent pointer-events-none" />
+                         <div className="relative z-10 space-y-6">
+                            <div className="flex items-center gap-2 text-indigo-400">
+                               <AlertCircle className="w-5 h-5" />
+                               <span className="text-[10px] font-black uppercase tracking-[0.2em]">Nota Importante</span>
+                            </div>
+                            <p className="text-slate-300 text-xs font-bold leading-relaxed">
+                              Cualquier cambio en las tarifas se aplicará automáticamente a los nuevos vehículos que ingresen. 
+                              Los vehículos que ya están en playa mantendrán la tarifa con la que ingresaron.
+                            </p>
+                            <button 
+                              type="submit"
+                              className="w-full bg-white text-slate-900 font-black py-5 rounded-2xl transition-all shadow-xl hover:scale-[1.02] active:scale-95 text-xs tracking-widest"
+                            >
+                              GUARDAR TODO
+                            </button>
+                         </div>
+                      </div>
+                    </div>
+                  </form>
                 </motion.div>
               ) : activeView === 'reports' ? (
                 <motion.div 
@@ -1988,8 +2049,8 @@ export default function App() {
                                       isDarkMode ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-white border-slate-100 hover:border-slate-200 shadow-sm"
                                     )}
                                   >
-                                    <div className="absolute top-0 left-0 bottom-0 w-1 opacity-20" 
-                                      style={{ backgroundColor: isMonthly ? '#10b981' : '#3b82f6' }} 
+                                    <div className="absolute top-0 left-0 bottom-0 w-1.5 opacity-40 transition-opacity group-hover:opacity-100" 
+                                      style={{ backgroundColor: isMonthly ? '#10b981' : '#6366f1' }} 
                                     />
                                     
                                     <div className="flex items-center gap-5">
@@ -2003,36 +2064,44 @@ export default function App() {
                                       </div>
                                       
                                       <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 mb-0.5">
                                           <h4 className={cn(
-                                            "font-black tracking-tight text-xl font-mono uppercase",
+                                            "font-black tracking-tight text-2xl font-mono uppercase leading-none",
                                             isDarkMode ? "text-white" : "text-slate-900"
                                           )}>
                                             {v.plate}
                                           </h4>
                                           <span className={cn(
                                             "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border shadow-sm flex items-center gap-1",
-                                            isMonthly ? "bg-emerald-500 text-white border-emerald-500" : "bg-slate-100 border-slate-200 text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400"
+                                            isMonthly 
+                                              ? (isDarkMode ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-emerald-50 border-emerald-200 text-emerald-600")
+                                              : (isDarkMode ? "bg-slate-800 border-slate-700 text-slate-500" : "bg-slate-100 border-slate-200 text-slate-500")
                                           )}>
                                             {isMonthly ? <CheckCircle2 className="w-2.5 h-2.5" /> : null}
-                                            {isMonthly ? 'Socio' : 'Ticket'}
+                                            {isMonthly ? 'SOCIO' : 'DIARIO'}
                                           </span>
                                         </div>
                                         <div className="flex items-center gap-3">
                                           <div className={cn(
-                                            "flex items-center gap-1.5 px-2 py-1 rounded-lg border",
-                                            isDarkMode ? "bg-slate-950/40 border-slate-800 text-slate-400" : "bg-slate-50 border-slate-100 text-slate-500"
+                                            "flex items-center gap-2 px-2.5 py-1 rounded-xl border transition-colors",
+                                            isDarkMode ? "bg-slate-950/40 border-slate-800 text-slate-400" : "bg-slate-50 border-slate-200/50 text-slate-500"
                                           )}>
-                                            <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                                            <div className="flex items-center gap-1 text-[11px] font-bold">
-                                              <span>{format(v.entryTime.toDate(), 'HH:mm')}</span>
-                                              <span className="opacity-30">→</span>
-                                              <span>{format(v.exitTime.toDate(), 'HH:mm')}</span>
+                                            <Clock className="w-3.5 h-3.5 text-indigo-500/70" />
+                                            <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                                              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>{format(v.entryTime.toDate(), 'HH:mm')}</span>
+                                              <span className="opacity-40 font-light">→</span>
+                                              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>{format(v.exitTime.toDate(), 'HH:mm')}</span>
                                             </div>
                                           </div>
-                                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-md">
-                                            {h > 0 && `${h}h `}{m}m
-                                          </span>
+                                          <div className={cn(
+                                            "flex items-center gap-1.5 px-2 py-1 rounded-lg",
+                                            isDarkMode ? "bg-slate-800" : "bg-slate-100"
+                                          )}>
+                                            <Timer className="w-3 h-3 text-slate-400" />
+                                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                              {h > 0 && `${h}h `}{m}m
+                                            </span>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -2040,14 +2109,17 @@ export default function App() {
                                     <div className="flex items-center justify-between sm:justify-end gap-6 sm:pl-0 pl-16">
                                       <div className="text-left sm:text-right">
                                         <p className={cn(
-                                          "font-black text-2xl tracking-tighter leading-none",
-                                          isMonthly ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-blue-400" : "text-blue-600")
+                                          "font-black text-3xl tracking-tighter leading-none mb-1",
+                                          isMonthly ? (isDarkMode ? "text-emerald-400" : "text-emerald-600") : (isDarkMode ? "text-indigo-400" : "text-indigo-600")
                                         )}>
                                           {formatCurrency(v.totalAmount)}
                                         </p>
-                                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">
-                                          {format(v.exitTime.toDate(), 'dd MMM yyyy', { locale: es })}
-                                        </p>
+                                        <div className="flex items-center sm:justify-end gap-1.5 opacity-60">
+                                          <Calendar className="w-3 h-3 text-slate-400" />
+                                          <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em]">
+                                            {format(v.exitTime.toDate(), 'dd MMM yyyy', { locale: es })}
+                                          </p>
+                                        </div>
                                       </div>
                                       
                                       <button
@@ -2162,10 +2234,16 @@ export default function App() {
                         const vehicle = activeVehicles.find(v => v.slotId === slotId);
                         const isSelected = selectedSlot === slotId;
                         const isOccupiedSelected = vehicle?.id === confirmingExitId;
+                        const isRecentlyUpdated = lastActionSlotId === slotId;
                         
                         return (
-                          <button 
+                          <motion.button 
                             key={slotId} 
+                            animate={isRecentlyUpdated ? { 
+                              scale: lastActionType === 'entry' ? [1, 1.2, 1] : [1, 0.8, 1],
+                              backgroundColor: lastActionType === 'entry' ? (isDarkMode ? '#064e3b' : '#ecfdf5') : (isDarkMode ? '#450a0a' : '#fef2f2')
+                            } : { scale: 1 }}
+                            transition={{ duration: 0.5 }}
                             onClick={() => {
                               // Solo pre-seleccionar si no hay vehículo en el slot
                               if (!vehicle) {
@@ -2235,7 +2313,7 @@ export default function App() {
                                  <Plus className="w-3.5 h-3.5" />
                               </div>
                             )}
-                          </button>
+                          </motion.button>
                         );
                       })}
                     </div>
@@ -2257,10 +2335,16 @@ export default function App() {
                         const vehicle = activeVehicles.find(v => v.slotId === slotId);
                         const isSelected = selectedSlot === slotId;
                         const isOccupiedSelected = vehicle?.id === confirmingExitId;
+                        const isRecentlyUpdated = lastActionSlotId === slotId;
                         
                         return (
-                          <button 
+                          <motion.button 
                             key={slotId} 
+                            animate={isRecentlyUpdated ? { 
+                              scale: lastActionType === 'entry' ? [1, 1.2, 1] : [1, 0.8, 1],
+                              backgroundColor: lastActionType === 'entry' ? (isDarkMode ? '#064e3b' : '#ecfdf5') : (isDarkMode ? '#450a0a' : '#fef2f2')
+                            } : { scale: 1 }}
+                            transition={{ duration: 0.5 }}
                             onClick={() => {
                               if (!vehicle) {
                                 setSelectedVehicleType('motorcycle');
@@ -2330,7 +2414,7 @@ export default function App() {
                                  <Plus className="w-3 h-3" />
                               </div>
                             )}
-                          </button>
+                          </motion.button>
                         );
                       })}
                     </div>
@@ -3258,7 +3342,7 @@ export default function App() {
           { id: 'history', icon: HistoryIcon, label: 'Historial' },
           { id: 'monthly', icon: CheckCircle2, label: 'Abonados' },
           { id: 'reports', icon: Search, label: 'Reportes' },
-          { id: 'settings', icon: SettingsIcon, label: 'Ajustes' },
+          { id: 'help', icon: HelpCircle, label: 'Ayuda' },
         ].map((v) => (
           <button 
             key={v.id}
