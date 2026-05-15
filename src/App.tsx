@@ -1013,8 +1013,16 @@ export default function App() {
                                 )}>
                                   {v.slotId}
                                 </span>
-                                {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className={cn("w-4 h-4 text-indigo-400", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} /> : <Car className={cn("w-4 h-4 text-indigo-400", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} />}
-                                <p className={cn("font-bold text-lg tracking-wider", isConfirming ? "text-white" : (isDarkMode ? (isMonthly ? "text-emerald-400" : "text-blue-400") : (isMonthly ? "text-emerald-600" : "text-blue-600")))}>{v.plate}</p>
+                                {v.vehicleType === 'motorcycle' ? (
+                                   <div className={cn("p-1.5 rounded-lg", isConfirming ? "bg-white/20" : "bg-indigo-500/10")}>
+                                     <MotorcycleIcon className={cn("w-5 h-5", isConfirming ? "text-white" : "text-indigo-400")} />
+                                   </div>
+                                 ) : (
+                                   <div className={cn("p-1.5 rounded-lg", isConfirming ? "bg-white/20" : "bg-blue-500/10")}>
+                                     <Car className={cn("w-5 h-5", isConfirming ? "text-white" : "text-blue-400")} />
+                                   </div>
+                                 )}
+                                <p className={cn("font-bold text-lg tracking-wider", isConfirming ? "text-white" : (isDarkMode ? (isMonthly ? "text-emerald-400" : (v.vehicleType === 'motorcycle' ? "text-indigo-400" : "text-blue-400")) : (isMonthly ? "text-emerald-600" : (v.vehicleType === 'motorcycle' ? "text-indigo-600" : "text-blue-600"))))}>{v.plate}</p>
                                 {isMonthly && (
                                   <span className={cn("text-[8px] border px-1.5 py-0.5 rounded font-black uppercase tracking-widest leading-none", isConfirming ? "bg-white/20 border-white/30 text-white" : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30")}>Abono</span>
                                 )}
@@ -1174,7 +1182,7 @@ export default function App() {
                                        "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-500",
                                        isDarkMode ? "bg-slate-800 text-emerald-400 group-hover:bg-emerald-900/30" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100"
                                      )}>
-                                        {pass.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-6 h-6" /> : <Car className="w-6 h-6" />}
+                                        {pass.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-7 h-7" /> : <Car className="w-7 h-7" />}
                                      </div>
                                      <div className="text-left">
                                         <h4 className="font-black text-lg tracking-wider bg-gradient-to-r from-emerald-500 to-emerald-400 bg-clip-text text-transparent">{pass.plate}</h4>
@@ -1446,7 +1454,7 @@ export default function App() {
                               isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"
                             )}>
                               {Array.from(new Set(reportData.map(v => v.plate)))
-                                .filter(p => p.toUpperCase().includes(reportPlate.toUpperCase()) && p.toUpperCase() !== reportPlate.toUpperCase())
+                                .filter((p: string) => p.toUpperCase().includes(reportPlate.toUpperCase()) && p.toUpperCase() !== reportPlate.toUpperCase())
                                 .slice(0, 8)
                                 .map(s => (
                                   <button
@@ -1821,7 +1829,7 @@ export default function App() {
                             isDarkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"
                           )}>
                             {Array.from(new Set(history.map(v => v.plate)))
-                              .filter(p => p.toUpperCase().includes(historyPlate.toUpperCase()) && p.toUpperCase() !== historyPlate.toUpperCase())
+                              .filter((p: string) => p.toUpperCase().includes(historyPlate.toUpperCase()) && p.toUpperCase() !== historyPlate.toUpperCase())
                               .slice(0, 8)
                               .map(s => (
                                 <button
@@ -1926,10 +1934,10 @@ export default function App() {
                                       <div className={cn(
                                         "w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm",
                                         isDarkMode 
-                                          ? (isMonthly ? "bg-emerald-900/20 text-emerald-400" : "bg-blue-900/20 text-blue-400") 
-                                          : (isMonthly ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600")
+                                          ? (isMonthly ? "bg-emerald-900/20 text-emerald-400" : (v.vehicleType === 'motorcycle' ? "bg-indigo-900/20 text-indigo-400" : "bg-blue-900/20 text-blue-400")) 
+                                          : (isMonthly ? "bg-emerald-50 text-emerald-600" : (v.vehicleType === 'motorcycle' ? "bg-indigo-50 text-indigo-600" : "bg-blue-50 text-blue-600"))
                                       )}>
-                                        {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-6 h-6" /> : <Car className="w-6 h-6" />}
+                                        {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-7 h-7" /> : <Car className="w-7 h-7" />}
                                       </div>
                                       <div>
                                         <div className="flex items-center gap-2 mb-1">
@@ -2103,17 +2111,27 @@ export default function App() {
                             <span className={cn("absolute top-1 left-1.5 font-black text-[20px] leading-[21.5px] tracking-tighter z-10", vehicle ? (isOccupiedSelected ? "text-white/20" : (vehicle.entryType === 'monthly' ? "text-emerald-400/30" : "text-blue-400/30")) : "text-slate-400")}>#{slotNum}</span>
                             {vehicle ? (
                                <div className="relative w-full h-full p-2 flex flex-col items-center justify-center">
-                                 <motion.div layoutId={`vehicle-body-${vehicle.id}`} className={cn("absolute inset-x-2 inset-y-2 shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden", 
-                                   "rounded-lg",
-                                   isOccupiedSelected 
-                                     ? "bg-gradient-to-br from-white to-slate-200"
-                                     : (isDarkMode 
-                                         ? (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-400 to-emerald-600" : "bg-gradient-to-br from-blue-400 to-blue-600") 
-                                         : (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-500 to-emerald-700" : "bg-gradient-to-br from-blue-500 to-blue-700"))
-                                 )}>
-                                   <ParkingIcon className={cn("w-full h-full p-2.5 opacity-80", isOccupiedSelected ? (vehicle.vehicleType === 'motorcycle' ? "text-indigo-600" : "text-blue-600") : "text-white/20")} />
-                                   <div className="absolute top-1 right-1 opacity-60">
-                                      {vehicle.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-3.5 h-3.5 text-white" /> : <Car className="w-3 h-3 text-white" />}
+                                 <motion.div 
+                                   layoutId={`vehicle-body-${vehicle.id}`} 
+                                   className={cn(
+                                     "absolute transition-all duration-500 flex items-center justify-center overflow-hidden shadow-lg", 
+                                     "rounded-lg",
+                                     vehicle.vehicleType === 'motorcycle' ? "inset-x-4 inset-y-4" : "inset-x-2 inset-y-2",
+                                     isOccupiedSelected 
+                                       ? "bg-gradient-to-br from-white to-slate-200"
+                                       : (isDarkMode 
+                                           ? (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-400 to-emerald-600" : (vehicle.vehicleType === 'motorcycle' ? "bg-gradient-to-br from-indigo-400 to-indigo-600" : "bg-gradient-to-br from-blue-400 to-blue-600")) 
+                                           : (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-500 to-emerald-700" : (vehicle.vehicleType === 'motorcycle' ? "bg-gradient-to-br from-indigo-500 to-indigo-700" : "bg-gradient-to-br from-blue-500 to-blue-700")))
+                                   )}
+                                 >
+                                   <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                                      <ParkingIcon className="w-full h-full p-2" />
+                                   </div>
+                                   <div className={cn(
+                                     "relative z-10 transition-transform duration-500 group-hover:scale-110",
+                                     isOccupiedSelected ? "text-indigo-600" : "text-white"
+                                   )}>
+                                      {vehicle.vehicleType === 'motorcycle' ? <MotorcycleIcon className="w-6 h-6" /> : <Car className="w-7 h-7" />}
                                    </div>
                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
                                  </motion.div>
@@ -2182,20 +2200,26 @@ export default function App() {
                                <div className="relative w-full h-full p-2 flex flex-col items-center justify-center">
                                  {/* Moto Body Shape */}
                                  <motion.div 
-                                   layoutId={`vehicle-body-${vehicle.id}`}
+                                   layoutId={`vehicle-body-${vehicle.id}`} 
                                    className={cn(
-                                     "absolute w-8 h-5 shadow-lg transition-all duration-500 flex items-center justify-center overflow-hidden",
+                                     "absolute transition-all duration-500 flex items-center justify-center overflow-hidden shadow-lg", 
                                      "rounded-lg",
+                                     "inset-x-4 inset-y-4",
                                      isOccupiedSelected 
                                        ? "bg-gradient-to-br from-white to-slate-200"
                                        : (isDarkMode 
-                                           ? (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-violet-400 to-violet-600" : "bg-gradient-to-br from-indigo-400 to-indigo-600") 
-                                           : (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-violet-500 to-violet-700" : "bg-gradient-to-br from-indigo-500 to-indigo-700"))
-                                   )}
+                                           ? (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-400 to-emerald-600" : "bg-gradient-to-br from-indigo-400 to-indigo-600") 
+                                           : (vehicle.entryType === 'monthly' ? "bg-gradient-to-br from-emerald-500 to-emerald-700" : "bg-gradient-to-br from-indigo-500 to-indigo-700")))
+                                   }
                                  >
-                                   <ParkingIcon className={cn("w-full h-full p-3 opacity-80", isOccupiedSelected ? "text-indigo-600" : "text-white/20")} />
-                                   <div className="absolute top-0.5 right-1 opacity-60">
-                                      <MotorcycleIcon className="w-2.5 h-2.5 text-white" />
+                                   <div className="absolute inset-0 flex items-center justify-center opacity-20">
+                                      <ParkingIcon className="w-full h-full p-1.5" />
+                                   </div>
+                                   <div className={cn(
+                                     "relative z-10 transition-transform duration-500 group-hover:scale-110",
+                                     isOccupiedSelected ? "text-indigo-600" : "text-white"
+                                   )}>
+                                      <MotorcycleIcon className="w-6 h-6" />
                                    </div>
                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4)_0%,transparent_50%)]" />
                                  </motion.div>
@@ -2266,8 +2290,16 @@ export default function App() {
                              )}>
                                {v.slotId}
                              </span>
-                             {v.vehicleType === 'motorcycle' ? <MotorcycleIcon className={cn("w-4 h-4", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} /> : <Car className={cn("w-4 h-4", isConfirming ? "text-white" : (isMonthly ? "text-emerald-400" : "text-blue-400"))} />}
-                             <p className={cn("font-bold text-lg tracking-wider", isConfirming ? "text-white" : (isDarkMode ? (isMonthly ? "text-emerald-400" : "text-blue-400") : (isMonthly ? "text-emerald-600" : "text-blue-600")))}>{v.plate}</p>
+                             {v.vehicleType === 'motorcycle' ? (
+                               <div className={cn("p-1.5 rounded-lg", isConfirming ? "bg-white/20" : "bg-indigo-500/10")}>
+                                 <MotorcycleIcon className={cn("w-5 h-5", isConfirming ? "text-white" : "text-indigo-400")} />
+                               </div>
+                             ) : (
+                               <div className={cn("p-1.5 rounded-lg", isConfirming ? "bg-white/20" : "bg-blue-500/10")}>
+                                 <Car className={cn("w-5 h-5", isConfirming ? "text-white" : "text-blue-400")} />
+                               </div>
+                             )}
+                             <p className={cn("font-bold text-lg tracking-wider", isConfirming ? "text-white" : (isDarkMode ? (isMonthly ? "text-emerald-400" : (v.vehicleType === 'motorcycle' ? "text-indigo-400" : "text-blue-400")) : (isMonthly ? "text-emerald-600" : (v.vehicleType === 'motorcycle' ? "text-indigo-600" : "text-blue-600"))))}>{v.plate}</p>
                           </div>
                           <p className={cn("text-[10px] font-bold uppercase mt-1", isConfirming ? "text-white/60" : "text-slate-400")}>Ingreso: {v.entryTime ? format(v.entryTime.toDate(), 'HH:mm') : '--:--'}</p>
                         </div>
