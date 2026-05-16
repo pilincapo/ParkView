@@ -219,11 +219,20 @@ export default function App() {
       const ests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Establishment));
       setEstablishments(ests);
       
-      // Auto-select first establishment if none selected
-      if (ests.length > 0 && !selectedEstId) {
-        setSelectedEstId(ests[0].id || null);
-        localStorage.setItem('selectedEstId', ests[0].id || '');
-      }
+      // Auto-select first valid establishment if none selected or if selected is invalid
+      setSelectedEstId((currentSelected) => {
+        if (ests.length > 0) {
+          if (!currentSelected || !ests.find(e => e.id === currentSelected)) {
+            const newId = ests[0].id || null;
+            if (newId) localStorage.setItem('selectedEstId', newId);
+            return newId;
+          }
+          return currentSelected;
+        } else {
+          localStorage.removeItem('selectedEstId');
+          return null;
+        }
+      });
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'establishments');
     });
