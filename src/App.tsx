@@ -3076,6 +3076,7 @@ export default function App() {
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => {
+                      setHistoryPlate(selectedHistoryVehicle.plate);
                       setActiveView('history');
                       setSelectedHistoryVehicle(null);
                     }}
