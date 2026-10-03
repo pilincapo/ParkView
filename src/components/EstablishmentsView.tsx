@@ -1,32 +1,60 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { collection, addDoc, updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { auth, db, createStaffUser } from '../lib/firebase';
-import { Establishment, OperationType } from '../types';
-import { handleFirestoreError } from '../lib/error-handler';
-import { Building2, Plus, Users, Trash2, ShieldCheck, Mail, Lock, AlertCircle } from 'lucide-react';
+import { establishmentsApi, ApiError, type AppUser } from '../lib/api';
+import { Establishment, OperationType, type MemberInfo } from '../types';
+import { handleDataError } from '../lib/error-handler';
+import { Building2, Plus, Users, Trash2, ShieldCheck, Mail, AlertCircle } from 'lucide-react';
 import { StylizedLetterA } from './Icons';
 import { cn } from '../lib/utils';
-import { User as FirebaseUser } from 'firebase/auth';
 
 interface EstablishmentsViewProps {
-  user: FirebaseUser;
+  user: AppUser;
   isSuperAdmin: boolean;
   establishments: Establishment[];
   isDarkMode: boolean;
+  /** Se recibe de App por compatibilidad; no se usa en el render. */
+  theme?: string;
+  /** Se llama al crear/borrar para que App refresque su lista de cocheras. */
+  onChanged?: () => void;
 }
 
-export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, isSuperAdmin, establishments, isDarkMode }) => {
+export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({
+  user,
+  isDarkMode,
+  establishments,
+  onChanged,
+}) => {
   const [newEstName, setNewEstName] = useState('');
   const [newEstAddress, setNewEstAddress] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [managingMembersId, setManagingMembersId] = useState<string | null>(null);
   const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [newMemberPassword, setNewMemberPassword] = useState('');
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
+  // Los miembros no vienen en el listado de cocheras: se piden al abrir el
+  // modal. Sin esto el modal salía vacío y no se podía quitar a nadie.
+  const [members, setMembers] = useState<MemberInfo[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
 
   const currentManagingEst = establishments.find(e => e.id === managingMembersId);
+
+  useEffect(() => {
+    if (!managingMembersId) {
+      setMembers([]);
+      return;
+    }
+    let vivo = true;
+    setLoadingMembers(true);
+    establishmentsApi
+      .miembros(managingMembersId)
+      .then(m => { if (vivo) setMembers(m); })
+      .catch(error => {
+        if (!vivo) return;
+        setMemberError(handleDataError(error, OperationType.LIST, 'members') ?? 'No se pudieron cargar los miembros');
+      })
+      .finally(() => { if (vivo) setLoadingMembers(false); });
+    return () => { vivo = false; };
+  }, [managingMembersId]);
 
   const handleCreateEstablishment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,32 +62,13 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
 
     setIsCreating(true);
     try {
-      const defaultSettings = {
-        hourlyRate: 1000,
-        carHalfHourRate: 600,
-        motoDailyRate: 500,
-        motoHourlyRate: 500, // legacy
-        monthlyRate: 25000,
-        motoMonthlyRate: 12000,
-        carSlots: 40,
-        motoSlots: 20,
-        totalSlots: 60,
-        updatedBy: user.uid,
-        updatedAt: new Date(),
-      };
-
-      await addDoc(collection(db, 'establishments'), {
-        name: newEstName,
-        address: newEstAddress,
-        ownerId: user.uid,
-        members: [user.uid],
-        settings: defaultSettings,
-      });
-
+      await establishmentsApi.crear(newEstName, newEstAddress);
       setNewEstName('');
       setNewEstAddress('');
+      onChanged?.();
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'establishments');
+      const mensaje = handleDataError(error, OperationType.CREATE, 'establishments');
+      setMemberError(mensaje ?? 'No se pudo crear la cochera');
     } finally {
       setIsCreating(false);
     }
@@ -67,24 +76,26 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!managingMembersId || !newMemberEmail || !newMemberPassword) return;
+    if (!managingMembersId || !newMemberEmail) return;
 
     setIsAddingMember(true);
     setMemberError(null);
     try {
-      // 1. Create the user in Firebase Auth using the secondary app tool
-      const newUser = await createStaffUser(newMemberEmail, newMemberPassword);
-      
-      // 2. Add the UID to the establishment's members list
-      await updateDoc(doc(db, 'establishments', managingMembersId), {
-        members: arrayUnion(newUser.uid)
-      });
-      
+      // El usuario debe existir primero: no hay alta de cuentas desde acá porque
+      // eso exigiría que este operador pudiera definir contraseñas ajenas.
+      await establishmentsApi.agregarMiembro(managingMembersId, newMemberEmail);
       setNewMemberEmail('');
-      setNewMemberPassword('');
-    } catch (error: any) {
-      console.error(error);
-      setMemberError(error.message || 'Error al crear usuario');
+      // Refrescar la lista del modal sin reabrirlo.
+      const actual = await establishmentsApi.miembros(managingMembersId);
+      setMembers(actual);
+      onChanged?.();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setMemberError(error.message);
+      } else {
+        const mensaje = handleDataError(error, OperationType.UPDATE, 'members');
+        setMemberError(mensaje ?? 'No se pudo agregar al miembro');
+      }
     } finally {
       setIsAddingMember(false);
     }
@@ -94,11 +105,12 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
     if (!managingMembersId || memberUid === user.uid) return;
 
     try {
-      await updateDoc(doc(db, 'establishments', managingMembersId), {
-        members: arrayRemove(memberUid)
-      });
+      await establishmentsApi.quitarMiembro(managingMembersId, memberUid);
+      setMembers(prev => prev.filter(m => m.userId !== memberUid));
+      onChanged?.();
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `establishments/${managingMembersId}`);
+      const mensaje = handleDataError(error, OperationType.UPDATE, 'members');
+      setMemberError(mensaje ?? 'No se pudo quitar al miembro');
     }
   };
 
@@ -273,25 +285,6 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contraseña Provisoria</label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    type="password"
-                    value={newMemberPassword}
-                    onChange={(e) => setNewMemberPassword(e.target.value)}
-                    placeholder="Min. 6 caracteres"
-                    required
-                    minLength={6}
-                    className={cn(
-                      "w-full pl-11 pr-4 py-3 border-2 font-bold text-sm focus:outline-none focus:border-indigo-500 transition-all rounded-md",
-                      isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-slate-50 border-slate-100"
-                    )}
-                  />
-                </div>
-              </div>
-
               {memberError && (
                 <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-[10px] font-bold uppercase">
                   <AlertCircle className="w-3.5 h-3.5" />
@@ -301,39 +294,50 @@ export const EstablishmentsView: React.FC<EstablishmentsViewProps> = ({ user, is
 
               <button 
                 type="submit"
-                disabled={isAddingMember || !newMemberEmail || !newMemberPassword}
+                disabled={isAddingMember || !newMemberEmail}
                 className={cn(
                   "w-full bg-indigo-600 text-white px-6 py-4 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 disabled:opacity-50 transition-all rounded-md"
                 )}
               >
-                {isAddingMember ? 'CREANDO...' : 'REGISTRAR Y AÑADIR'}
+                {isAddingMember ? 'AGREGANDO...' : 'AÑADIR A LA COCHERA'}
               </button>
               <p className="text-[9px] text-slate-500 dark:text-slate-600 text-center px-4">
-                El usuario será creado en el sistema y añadido a esta cochera.
-                <br />Recuerde habilitar el proveedor "Correo electrónico" en Firebase.
+                La persona debe tener cuenta propia (se registra con su contraseña en la pantalla de acceso).
+                <br />Acá solo se le da acceso a esta cochera.
               </p>
               </form>
 
               <div className="space-y-3 max-h-64 overflow-y-auto">
-                {currentManagingEst.members.map(memberUid => (
+                {loadingMembers ? (
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-center py-4">Cargando…</p>
+                ) : members.length === 0 ? (
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-center py-4">Sin miembros</p>
+                ) : members.map(m => (
                   <div 
-                    key={memberUid}
+                    key={m.userId}
                     className={cn(
                       "p-4 rounded-2xl border flex items-center justify-between",
                       isDarkMode ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-100"
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 text-[10px] font-black">
-                        {memberUid === user.uid ? <ShieldCheck className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
+                        {m.userId === user.uid ? <ShieldCheck className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
                       </div>
-                      <span className="font-mono text-xs text-slate-600 dark:text-slate-400">{memberUid.slice(0, 15)}...</span>
-                      {memberUid === user.uid && <span className="text-[8px] font-black uppercase text-indigo-500 bg-indigo-500/10 px-1.5 py-0.5 rounded">Tú</span>}
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold truncate">{m.displayName || m.email}</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                          {m.role === 'owner' ? 'Propietario' : m.role === 'manager' ? 'Encargado' : 'Operador'}
+                          {m.displayName ? ` · ${m.email}` : ''}
+                        </p>
+                      </div>
+                      {m.userId === user.uid && <span className="text-[8px] font-black uppercase text-indigo-500 bg-indigo-500/10 px-1.5 py-0.5 rounded shrink-0">Tú</span>}
                     </div>
-                    {memberUid !== user.uid && (
+                    {m.userId !== user.uid && m.role !== 'owner' && (
                       <button 
-                        onClick={() => handleRemoveMember(memberUid)}
-                        className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                        onClick={() => handleRemoveMember(m.userId)}
+                        title="Quitar acceso"
+                        className="p-2 text-slate-400 hover:text-red-500 transition-colors shrink-0"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

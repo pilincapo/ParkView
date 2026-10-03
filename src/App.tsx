@@ -5,25 +5,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
-import { auth, login, loginWithEmail, logout, db } from './lib/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  doc, 
-  serverTimestamp,
-  getDoc,
-  getDocFromServer,
-  setDoc,
-  deleteDoc,
-  Timestamp,
-  orderBy,
-  limit
-} from 'firebase/firestore';
+import {
+  authApi,
+  establishmentsApi,
+  vehiclesApi,
+  passesApi,
+  ApiError,
+  type AppUser,
+} from './lib/api';
+import { usePoll } from './lib/usePoll';
+import { calcularImporte } from '../shared/pricing';
 import { 
   Plus, 
   Settings as SettingsIcon, 
@@ -59,25 +50,21 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatCurrency } from './lib/utils';
 import { Establishment, Vehicle, VehicleStatus, ParkingSettings, OperationType } from './types';
-import { handleFirestoreError } from './lib/error-handler';
+import { handleDataError } from './lib/error-handler';
 import { EstablishmentsView } from './components/EstablishmentsView';
 import { ParkingIcon, MotorcycleIcon } from './components/Icons';
 
-// Super admin email - user can manage all establishments
-const SUPER_ADMIN_EMAIL = 'pilin123@gmail.com';
+// Intervalo de refresco de las vistas de datos. Ver src/lib/usePoll.ts para la
+// aritmética de presupuesto (requests/día y filas leídas) que lo justifica.
+const POLL_MS = 15_000;
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Establishments state
-  const [establishments, setEstablishments] = useState<Establishment[]>([]);
+  // Cochera seleccionada (persistida por dispositivo)
   const [selectedEstId, setSelectedEstId] = useState<string | null>(localStorage.getItem('selectedEstId'));
-  const currentEst = establishments.find(e => e.id === selectedEstId) || null;
 
-  const [activeVehicles, setActiveVehicles] = useState<Vehicle[]>([]);
-  const [history, setHistory] = useState<Vehicle[]>([]);
   const [settings, setSettings] = useState<ParkingSettings | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -97,7 +84,6 @@ export default function App() {
   const [duplicateVehicleAlert, setDuplicateVehicleAlert] = useState<{ plate: string; type: 'active' | 'monthly' } | null>(null);
   const [confirmingExitVehicle, setConfirmingExitVehicle] = useState<Vehicle | null>(null);
   const [editableAmount, setEditableAmount] = useState<number>(0);
-  const [monthlyPasses, setMonthlyPasses] = useState<any[]>([]);
   const [selectedHistoryVehicle, setSelectedHistoryVehicle] = useState<Vehicle | null>(null);
   const [selectedMonthlyPass, setSelectedMonthlyPass] = useState<any | null>(null);
   const [isConfirmingDeletePass, setIsConfirmingDeletePass] = useState(false);
@@ -110,21 +96,9 @@ export default function App() {
   const [isDeletingHistory, setIsDeletingHistory] = useState(false);
   const plateInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-detect monthly pass when typing plate
-  useEffect(() => {
-    if (selectedEntryType === 'daily' && plate.length >= 3) {
-      const pass = monthlyPasses.find(p => p.plate.toUpperCase() === plate.toUpperCase());
-      if (pass) {
-        setSelectedEntryType('monthly');
-        setSelectedVehicleType(pass.vehicleType);
-      }
-    }
-  }, [plate, monthlyPasses, selectedEntryType]);
-
   // Filters for reports
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-01'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [reportData, setReportData] = useState<Vehicle[]>([]);
   const [reportPlate, setReportPlate] = useState('');
   const [showReportSuggestions, setShowReportSuggestions] = useState(false);
   const [reportOperator, setReportOperator] = useState('all');
@@ -149,11 +123,33 @@ export default function App() {
     setLoginLoading(true);
     setLoginError(null);
     try {
-      await loginWithEmail(loginEmail, loginPassword);
-    } catch (error: any) {
-      setLoginError('Credenciales incorrectas');
+      const u = await authApi.ingresar(loginEmail, loginPassword);
+      setUser(u);
+    } catch (error) {
+      if (error instanceof ApiError && error.status !== 401) {
+        // 401 = credenciales mal. Cualquier otra cosa es un problema real.
+        setLoginError(error.message);
+      } else {
+        setLoginError('Credenciales incorrectas');
+      }
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    // Redirección completa: el Worker setea la cookie y vuelve a `/`.
+    authApi.google();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await authApi.salir();
+    } catch (error) {
+      console.error('No se pudo cerrar la sesión:', error);
+    } finally {
+      // Aunque falle el request, la sesión local ya no nos sirve.
+      setUser(null);
     }
   };
 
@@ -181,86 +177,63 @@ export default function App() {
   }, [isDarkMode]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (u) {
-        setIsSuperAdmin(u.email === SUPER_ADMIN_EMAIL);
+    // Sesión por cookie HttpOnly: una sola consulta al arrancar, sin listener.
+    let vivo = true;
+    (async () => {
+      try {
+        const actual = await authApi.actual();
+        if (vivo) setUser(actual);
+      } catch (error) {
+        // Red caída: arrancamos deslogueados en vez de quedarnos colgados.
+        console.error('No se pudo consultar la sesión:', error);
+        if (vivo) setUser(null);
+      } finally {
+        if (vivo) setLoading(false);
       }
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    })();
+    return () => { vivo = false; };
   }, []);
 
-  // Test connection to Firestore
+  // Escucha de cocheras: el servidor ya devuelve solo las accesibles, así que
+  // no hace falta separar superadmin en el cliente.
+  const establishmentsPoll = usePoll(
+    () => establishmentsApi.listar(),
+    [user?.uid],
+    { enabled: !!user, intervaloMs: POLL_MS }
+  );
+
   useEffect(() => {
-    async function testConnection() {
-      try {
-        await getDocFromServer(doc(db, 'establishments', 'connection-test'));
-      } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration.");
+    const ests = establishmentsPoll.data ?? [];
+    setSelectedEstId((currentSelected) => {
+      if (ests.length > 0) {
+        if (!currentSelected || !ests.find(e => e.id === currentSelected)) {
+          const newId = ests[0].id || null;
+          if (newId) localStorage.setItem('selectedEstId', newId);
+          return newId;
         }
+        return currentSelected;
       }
-    }
-    if (user) testConnection();
-  }, [user]);
-
-  // Listen to establishments where user is a member
-  useEffect(() => {
-    if (!user) return;
-
-    const q = isSuperAdmin 
-      ? collection(db, 'establishments')
-      : query(
-          collection(db, 'establishments'),
-          where('members', 'array-contains', user.uid)
-        );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Establishment));
-      setEstablishments(ests);
-      
-      // Auto-select first valid establishment if none selected or if selected is invalid
-      setSelectedEstId((currentSelected) => {
-        if (ests.length > 0) {
-          if (!currentSelected || !ests.find(e => e.id === currentSelected)) {
-            const newId = ests[0].id || null;
-            if (newId) localStorage.setItem('selectedEstId', newId);
-            return newId;
-          }
-          return currentSelected;
-        } else {
-          localStorage.removeItem('selectedEstId');
-          return null;
-        }
-      });
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'establishments');
+      localStorage.removeItem('selectedEstId');
+      return null;
     });
+  }, [establishmentsPoll.data]);
 
-    return () => unsubscribe();
-  }, [user, isSuperAdmin]);
+  const isSuperAdmin = user?.isSuper ?? false;
+  const establishments = establishmentsPoll.data ?? [];
+  const currentEst = establishments.find(e => e.id === selectedEstId) || null;
+  // Puede gestionar cocheras si es super admin o si es dueño de alguna. La API
+  // permite a cualquier usuario crear la suya, así que el acceso a esta vista no
+  // puede depender solo del super admin.
+  const canManageEst = isSuperAdmin || establishments.some(e => e.role === 'owner');
 
-  // Listen to active vehicles
-  useEffect(() => {
-    if (!user || !selectedEstId) return;
-
-    const q = query(
-      collection(db, 'vehicles'),
-      where('establishmentId', '==', selectedEstId),
-      where('status', '==', VehicleStatus.ACTIVE),
-      orderBy('entryTime', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const vehicles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
-      setActiveVehicles(vehicles);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `vehicles (est: ${selectedEstId})`);
-    });
-
-    return () => unsubscribe();
-  }, [user, selectedEstId]);
+  // Vehículos en playa. El refetch se dispara tras cada ingreso/salida para no
+  // esperar 15 s a que el operador vea su propia acción reflejada.
+  const vehiclesPoll = usePoll(
+    () => vehiclesApi.activos(selectedEstId!),
+    [selectedEstId],
+    { enabled: !!user && !!selectedEstId, intervaloMs: POLL_MS }
+  );
+  const activeVehicles = vehiclesPoll.data ?? [];
 
   // Listen to settings for the selected establishment
   useEffect(() => {
@@ -280,112 +253,64 @@ export default function App() {
     }
   }, [selectedEstId, establishments]);
 
-  // Listen to history for the list
+  // Historial. Solo consulta mientras la vista está visible: así no se paga el
+  // read de 15 en 15 s por una pantalla que nadie mira.
+  const historyPoll = usePoll(
+    async () => {
+      const r = await vehiclesApi.historial(selectedEstId!, { limit: 500 });
+      return r.vehicles;
+    },
+    [selectedEstId],
+    { enabled: !!user && !!selectedEstId && activeView === 'history', intervaloMs: POLL_MS }
+  );
+  const history = historyPoll.data ?? [];
+
+  // Reportes por rango de fechas. El filtro de operador se manda al servidor
+  // para no traer filas que después se descartan en el cliente.
+  const reportPoll = usePoll(
+    () =>
+      vehiclesApi.reporte(
+        selectedEstId!,
+        startDate,
+        endDate,
+        reportOperator === 'all' ? undefined : reportOperator
+      ),
+    [selectedEstId, startDate, endDate, reportOperator],
+    { enabled: !!user && !!selectedEstId && activeView === 'reports', intervaloMs: POLL_MS }
+  );
+  const reportData = reportPoll.data ?? [];
+
+  // Abonos. El servidor ya excluye los vencidos, que antes seguían dando
+  // ingreso gratis mientras su status siguiera en 'active'.
+  const passesPoll = usePoll(
+    () => passesApi.listar(selectedEstId!),
+    [selectedEstId],
+    { enabled: !!user && !!selectedEstId, intervaloMs: POLL_MS }
+  );
+  const monthlyPasses = passesPoll.data ?? [];
+
+  // Autodetección de abono mientras se escribe la patente. Va después del poll
+  // porque lee `monthlyPasses`.
   useEffect(() => {
-    if (!user || !selectedEstId || activeView !== 'history') return;
-
-    const q = query(
-      collection(db, 'vehicles'),
-      where('establishmentId', '==', selectedEstId),
-      where('status', '==', VehicleStatus.COMPLETED),
-      orderBy('exitTime', 'desc'),
-      limit(50)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const vehicles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
-      setHistory(vehicles);
-      setHistoryPage(1); // Reset pagination on new data
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'vehicles history');
-    });
-
-    return () => unsubscribe();
-  }, [user, selectedEstId, activeView]);
-
-  // Fetch data for reports based on date range
-  useEffect(() => {
-    if (!user || !selectedEstId || activeView !== 'reports') return;
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-
-    const constraints = [
-      where('establishmentId', '==', selectedEstId),
-      where('status', '==', VehicleStatus.COMPLETED),
-      where('exitTime', '>=', Timestamp.fromDate(start)),
-      where('exitTime', '<=', Timestamp.fromDate(end))
-    ];
-
-    if (reportOperator !== 'all') {
-      constraints.push(where('ownerId', '==', reportOperator));
+    if (selectedEntryType === 'daily' && plate.length >= 3) {
+      const pass = monthlyPasses.find(p => p.plate.toUpperCase() === plate.toUpperCase());
+      if (pass) {
+        setSelectedEntryType('monthly');
+        setSelectedVehicleType(pass.vehicleType);
+      }
     }
+  }, [plate, monthlyPasses, selectedEntryType]);
 
-    const q = query(
-      collection(db, 'vehicles'),
-      ...constraints
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const vehicles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vehicle));
-      setReportData(vehicles);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'reports');
-    });
-
-    return () => unsubscribe();
-  }, [user, selectedEstId, activeView, startDate, endDate, reportOperator]);
-
-  // Listen to monthly passes
+  // Patentes para el autocompletado: se arma con el historial y los abonos.
   useEffect(() => {
     if (!user || !selectedEstId) return;
 
-    const q = query(
-      collection(db, 'monthlyPasses'),
-      where('establishmentId', '==', selectedEstId),
-      where('status', '==', 'active')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const passes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setMonthlyPasses(passes);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'monthlyPasses');
-    });
-
-    return () => unsubscribe();
-  }, [user, selectedEstId]);
-
-  // Fetch historical plates for autocomplete
-  useEffect(() => {
-    if (!user || !selectedEstId) return;
-
-    // Fetch the last 200 vehicles to build a suggestion list
-    const q = query(
-      collection(db, 'vehicles'),
-      where('establishmentId', '==', selectedEstId),
-      orderBy('entryTime', 'desc'),
-      limit(200)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const plates = new Set<string>();
-      // Use existing history and current fetch
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.plate) plates.add(data.plate);
-      });
-      // Add monthly passes to the set
-      monthlyPasses.forEach(p => plates.add(p.plate));
-      
-      setAllHistoricalPlates(Array.from(plates).sort());
-    }, (error) => {
-      console.warn("Autocomplete fetch failed:", error);
-    });
-
-    return () => unsubscribe();
-  }, [user, selectedEstId, monthlyPasses]);
+    const plates = new Set<string>();
+    history.forEach(v => plates.add(v.plate));
+    activeVehicles.forEach(v => plates.add(v.plate));
+    monthlyPasses.forEach(p => plates.add(p.plate));
+    setAllHistoricalPlates(Array.from(plates).sort());
+  }, [user, selectedEstId, history, activeVehicles, monthlyPasses]);
 
   const handleEntry = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -421,17 +346,12 @@ export default function App() {
 
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'vehicles'), {
-        plate: plate.toUpperCase(),
+      await vehiclesApi.ingresar({
+        establishmentId: selectedEstId,
+        plate: cleanPlate,
         slotId: selectedSlot,
         vehicleType: selectedVehicleType,
         entryType: selectedEntryType,
-        entryTime: serverTimestamp(),
-        exitTime: null,
-        status: VehicleStatus.ACTIVE,
-        totalAmount: 0,
-        ownerId: user.uid,
-        establishmentId: selectedEstId
       });
       setLastActionSlotId(selectedSlot);
       setLastActionType('entry');
@@ -440,8 +360,25 @@ export default function App() {
       setSelectedSlot('');
       setSelectedEntryType('daily');
       setActiveView('monitor');
+      // El polling puede tardar hasta 15 s: refrescamos para que el operador
+      // vea su ingreso enseguida.
+      vehiclesPoll.refetch();
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'vehicles');
+      if (error instanceof ApiError) {
+        if (error.code === 'slot_occupied') {
+          // Otro operador tomó la cochera en el medio. Refrescamos para que
+          // el panel muestre el estado real y no el que él tenía en pantalla.
+          vehiclesPoll.refetch();
+          setPlateError(`La cochera ${selectedSlot} ya está ocupada`);
+        } else if (error.code === 'plate_already_active') {
+          setDuplicateVehicleAlert({ plate: cleanPlate, type: 'active' });
+        } else {
+          setPlateError(error.message);
+        }
+      } else {
+        const mensaje = handleDataError(error, OperationType.CREATE, 'vehicles');
+        if (mensaje) setPlateError(mensaje);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -473,105 +410,73 @@ export default function App() {
     }
 
     try {
-      const now = new Date();
-      const nextMonth = new Date(now);
-      nextMonth.setMonth(now.getMonth() + 1);
-
-      await addDoc(collection(db, 'monthlyPasses'), {
+      await passesApi.crear({
+        establishmentId: selectedEstId,
         plate: plateVal,
         vehicleType: type,
-        startDate: serverTimestamp(),
-        endDate: Timestamp.fromDate(nextMonth),
         amount,
-        status: 'active',
-        ownerId: user.uid,
-        establishmentId: selectedEstId
+        months: 1,
       });
       (e.target as HTMLFormElement).reset();
       setMonthlyVehicleType('car');
       setMonthlyAmountState(settings?.monthlyRate || 0);
       setIsAddingMonthlyPass(false);
       setActiveView('monitor');
+      passesPoll.refetch();
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'monthlyPasses');
+      if (error instanceof ApiError && error.code === 'pass_exists') {
+        setDuplicateVehicleAlert({ plate: plateVal, type: 'monthly' });
+      } else {
+        const mensaje = handleDataError(error, OperationType.CREATE, 'monthlyPasses');
+        if (mensaje) setPlateErrorMonthly(mensaje);
+      }
     }
   };
 
-  const safeToDate = (date: any) => {
+  const safeToDate = (date: Date | string | number | null | undefined): Date => {
     if (!date) return new Date();
-    if (typeof date.toDate === 'function') return date.toDate();
     if (date instanceof Date) return date;
-    if (typeof date === 'string' || typeof date === 'number') return new Date(date);
-    return new Date();
+    return new Date(date);
   };
 
-  const handleRenewPass = async (passId: string, currentEndDate: any) => {
+  const handleRenewPass = async (passId: string) => {
     try {
-      const current = safeToDate(currentEndDate);
-      const now = new Date();
-      // Si ya venció, renovamos desde hoy. Si no venció, extendemos un mes desde el vencimiento.
-      const baseDate = current > now ? current : now;
-      
-      const newEndDate = new Date(baseDate);
-      newEndDate.setMonth(baseDate.getMonth() + 1);
-      
-      await updateDoc(doc(db, 'monthlyPasses', passId), {
-        endDate: Timestamp.fromDate(newEndDate),
-        updatedAt: serverTimestamp()
-      });
+      // La lógica de "desde hoy" vs "desde el vencimiento" vive en el servidor,
+      // que es quien conoce la fecha real sin depender del reloj del cliente.
+      await passesApi.renovar(passId, 1);
       setSelectedMonthlyPass(null);
       setIsConfirmingDeletePass(false);
+      passesPoll.refetch();
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `monthlyPasses/${passId}`);
+      const mensaje = handleDataError(error, OperationType.UPDATE, `passes/${passId}`);
+      if (mensaje) setPlateError(mensaje);
     }
   };
 
   const handleDeletePass = async (passId: string) => {
     try {
-      await deleteDoc(doc(db, 'monthlyPasses', passId));
+      await passesApi.eliminar(passId);
       setSelectedMonthlyPass(null);
       setIsConfirmingDeletePass(false);
+      passesPoll.refetch();
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `monthlyPasses/${passId}`);
+      const mensaje = handleDataError(error, OperationType.DELETE, `passes/${passId}`);
+      if (mensaje) setPlateError(mensaje);
     }
   };
 
-  const calculateAmount = (v: Vehicle) => {
-    if (!settings || !v.entryTime) return 0;
-    if (v.entryType === 'monthly') return 0;
-    
-    const now = new Date();
-    const entry = v.entryTime.toDate();
-    const diffMs = now.getTime() - entry.getTime();
-    const diffMinutes = Math.max(1, Math.ceil(diffMs / (1000 * 60)));
-
-    if (v.vehicleType === 'motorcycle') {
-      return settings.motoDailyRate || 500;
-    }
-
-    const hourlyRate = settings.hourlyRate || 1000;
-    const halfHourRate = settings.carHalfHourRate || Math.ceil(hourlyRate / 2);
-    
-    // Primera hora siempre completa
-    if (diffMinutes <= 60) {
-      return hourlyRate;
-    }
-
-    // Más de una hora: primera hora + excedente
-    let total = hourlyRate; 
-    const extraMinutes = diffMinutes - 60;
-    const extraFullHours = Math.floor(extraMinutes / 60);
-    const remainingExtraMinutes = extraMinutes % 60;
-    
-    total += extraFullHours * hourlyRate;
-    
-    if (remainingExtraMinutes > 30) {
-      total += hourlyRate;
-    } else if (remainingExtraMinutes > 0) {
-      total += halfHourRate;
-    }
-    
-    return total;
+  /**
+   * Importe a cobrar. Delega en `shared/pricing.ts` para que el número que ve
+   * el operador y el que cobra el servidor salgan de la misma fórmula.
+   */
+  const calculateAmount = (v: Vehicle): number => {
+    if (!v.entryTime) return 0;
+    return calcularImporte({
+      entryTime: v.entryTime,
+      entryType: v.entryType,
+      vehicleType: v.vehicleType,
+      settings,
+    });
   };
 
   const handleExit = async (vehicle: Vehicle) => {
@@ -588,19 +493,27 @@ export default function App() {
     setIsSubmitting(true);
 
     try {
-      await updateDoc(doc(db, 'vehicles', confirmingExitVehicle.id), {
-        status: VehicleStatus.COMPLETED,
-        exitTime: serverTimestamp(),
-        totalAmount: editableAmount
-      });
+      await vehiclesApi.salir(confirmingExitVehicle.id, editableAmount);
       setLastActionSlotId(confirmingExitVehicle.slotId);
       setLastActionType('exit');
       setTimeout(() => setLastActionSlotId(null), 1000);
       setConfirmingExitVehicle(null);
       setConfirmingExitId(null);
       setActiveView('monitor');
+      vehiclesPoll.refetch();
+      if (activeView === 'history') historyPoll.refetch();
+      if (activeView === 'reports') reportPoll.refetch();
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `vehicles/${confirmingExitVehicle.id}`);
+      if (error instanceof ApiError && error.code === 'already_exited') {
+        // Otro operador cobró el mismo vehículo: no duplicar el cobro.
+        setConfirmingExitVehicle(null);
+        setConfirmingExitId(null);
+        vehiclesPoll.refetch();
+        setPlateError('Ese vehículo ya egresó');
+      } else {
+        const mensaje = handleDataError(error, OperationType.UPDATE, `vehicles/${confirmingExitVehicle.id}`);
+        if (mensaje) setPlateError(mensaje);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -611,14 +524,14 @@ export default function App() {
     setIsDeletingHistory(true);
     console.log('Solicitando eliminar registro history:', id);
     try {
-      // Optimistic locally
-      setHistory(prev => prev.filter(v => v.id !== id));
-      await deleteDoc(doc(db, 'vehicles', id));
-      console.log('Registro eliminado exitosamente:', id);
+      await vehiclesApi.eliminar(id);
+      // Sin optimistic update: el próximo tick de polling refleja el borrado.
+      // Un optimistic update con polling se pisa y deja filas fantasma.
       setHistoryVehicleToDelete(null);
+      historyPoll.refetch();
     } catch (error) {
-      console.error('Error al eliminar registro:', error);
-      handleFirestoreError(error, OperationType.DELETE, `history/${id}`);
+      const mensaje = handleDataError(error, OperationType.DELETE, `history/${id}`);
+      if (mensaje) setPlateError(mensaje);
     } finally {
       setIsDeletingHistory(false);
     }
@@ -635,25 +548,26 @@ export default function App() {
   ) => {
     if (!user || !selectedEstId || !currentEst) return;
     try {
-      const newSettings = {
-        hourlyRate: carRate,
-        carHalfHourRate,
-        motoDailyRate,
-        motoHourlyRate: motoDailyRate, // keep for compat
-        monthlyRate,
-        motoMonthlyRate,
-        carSlots: carSlots,
-        motoSlots: motoSlots,
-        totalSlots: carSlots + motoSlots,
-        updatedBy: user.uid,
-        updatedAt: serverTimestamp()
-      };
-      await updateDoc(doc(db, 'establishments', selectedEstId), {
-        settings: newSettings
+      await establishmentsApi.actualizar(selectedEstId, {
+        settings: {
+          hourlyRate: carRate,
+          carHalfHourRate,
+          motoDailyRate,
+          motoHourlyRate: motoDailyRate, // legacy, se conserva por compatibilidad
+          monthlyRate,
+          motoMonthlyRate,
+          carSlots,
+          motoSlots,
+          totalSlots: carSlots + motoSlots,
+          updatedBy: user.uid,
+          updatedAt: new Date(),
+        },
       });
       setActiveView('monitor');
+      establishmentsPoll.refetch();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `establishments/${selectedEstId}`);
+      const mensaje = handleDataError(error, OperationType.WRITE, `establishments/${selectedEstId}`);
+      if (mensaje) setPlateError(mensaje);
     }
   };
 
@@ -738,7 +652,7 @@ export default function App() {
         </form>
 
         <button 
-          onClick={login}
+          onClick={handleGoogleLogin}
           className={cn("w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 py-4 px-6 font-bold hover:bg-slate-50 transition-all group rounded-md")}
         >
           <LogIn className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -801,7 +715,7 @@ export default function App() {
             { id: 'reports', icon: Search, label: 'Reportes y Caja' },
             { id: 'help', icon: HelpCircle, label: 'Ayuda y Soporte' },
             { id: 'settings', icon: SettingsIcon, label: 'Configuración' },
-            ...(isSuperAdmin ? [{ id: 'establishments', icon: Building2, label: 'Mis Cocheras' }] : []),
+            ...(canManageEst ? [{ id: 'establishments', icon: Building2, label: 'Mis Cocheras' }] : []),
           ].map((v) => (
             <button 
               key={v.id}
@@ -847,7 +761,7 @@ export default function App() {
           </div>
 
           <button 
-            onClick={logout}
+            onClick={handleLogout}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 transition-all group",
               "rounded-xl",
@@ -976,7 +890,7 @@ export default function App() {
             </button>
             
             <button 
-              onClick={logout}
+              onClick={handleLogout}
               className={cn(
                 "lg:hidden p-2.5 transition-all border border-transparent rounded-xl",
                 isDarkMode ? "hover:bg-red-950 text-slate-500 hover:text-red-400" : "hover:bg-red-50 text-slate-400 hover:text-red-500"
@@ -1054,7 +968,7 @@ export default function App() {
                     <Building2 className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                     <h2 className="text-xl font-black mb-2">No hay cocheras seleccionadas</h2>
                     <p className="text-slate-500 mb-6 max-w-xs mx-auto">Selecciona una cochera o crea una nueva para comenzar a operar.</p>
-                    {isSuperAdmin && (
+                    {canManageEst && (
                       <button 
                         onClick={() => setActiveView('establishments')}
                         className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all"
@@ -1071,6 +985,7 @@ export default function App() {
                   establishments={establishments} 
                   isDarkMode={isDarkMode}
                   theme={currentTheme}
+                  onChanged={() => establishmentsPoll.refetch()}
                 />
               ) : activeView === 'activity' ? (
                 <motion.div 
@@ -1137,7 +1052,7 @@ export default function App() {
                                "text-[10px] font-bold uppercase mt-1",
                                isConfirming ? "text-white/60" : "text-slate-400"
                              )}>
-                               Ingreso: {v.entryTime ? format(v.entryTime.toDate(), 'HH:mm') : '--:--'}
+                               Ingreso: {v.entryTime ? format(v.entryTime, 'HH:mm') : '--:--'}
                              </p>
                            </div>
                            <div className="text-right">
@@ -1738,7 +1653,7 @@ export default function App() {
                               <div className={cn("divide-y", isDarkMode ? "divide-slate-800" : "divide-slate-50")}>
                                 {Object.entries(filteredData.reduce((acc, curr) => {
                                   if (!curr.exitTime || !curr.totalAmount) return acc;
-                                  const dateKey = format(curr.exitTime.toDate(), 'dd/MM/yyyy');
+                                  const dateKey = format(curr.exitTime, 'dd/MM/yyyy');
                                   if (!acc[dateKey]) acc[dateKey] = { income: 0, count: 0 };
                                   acc[dateKey].income += curr.totalAmount;
                                   acc[dateKey].count += 1;
@@ -2055,7 +1970,7 @@ export default function App() {
                         const matchesPlate = v.plate.includes(historyPlate);
                         const matchesType = historyType === 'all' || v.vehicleType === historyType;
                         const matchesEntryType = historyEntryType === 'all' || v.entryType === historyEntryType;
-                        const matchesDate = !historyDate || (v.exitTime && format(v.exitTime.toDate(), 'yyyy-MM-dd') === historyDate);
+                        const matchesDate = !historyDate || (v.exitTime && format(v.exitTime, 'yyyy-MM-dd') === historyDate);
                         return matchesPlate && matchesType && matchesEntryType && matchesDate;
                       });
 
@@ -2073,7 +1988,7 @@ export default function App() {
                             ) : (
                               paginatedHistory.map((v) => {
                                 if (!v.entryTime || !v.exitTime || !v.id) return null;
-                                const diff = v.exitTime.toDate().getTime() - v.entryTime.toDate().getTime();
+                                const diff = v.exitTime.getTime() - v.entryTime.getTime();
                                 const h = Math.floor(diff / (1000 * 60 * 60));
                                 const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                                 const isMonthly = v.entryType === 'monthly';
@@ -2127,9 +2042,9 @@ export default function App() {
                                           )}>
                                             <Clock className="w-3.5 h-3.5 text-indigo-500/70" />
                                             <div className="flex items-center gap-1.5 text-[11px] font-bold">
-                                              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>{format(v.entryTime.toDate(), 'HH:mm')}</span>
+                                              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>{format(v.entryTime, 'HH:mm')}</span>
                                               <span className="opacity-40 font-light">→</span>
-                                              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>{format(v.exitTime.toDate(), 'HH:mm')}</span>
+                                              <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>{format(v.exitTime, 'HH:mm')}</span>
                                             </div>
                                           </div>
                                           <div className={cn(
@@ -2156,7 +2071,7 @@ export default function App() {
                                         <div className="flex items-center sm:justify-end gap-1.5 opacity-60">
                                           <Calendar className="w-3 h-3 text-slate-400" />
                                           <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em]">
-                                            {format(v.exitTime.toDate(), 'dd MMM yyyy', { locale: es })}
+                                            {format(v.exitTime, 'dd MMM yyyy', { locale: es })}
                                           </p>
                                         </div>
                                       </div>
@@ -2519,7 +2434,7 @@ export default function App() {
                              )}
                              <p className={cn("font-bold text-lg tracking-wider", isConfirming ? "text-white" : (isDarkMode ? (isMonthly ? "text-emerald-400" : (v.vehicleType === 'motorcycle' ? "text-indigo-400" : "text-blue-400")) : (isMonthly ? "text-emerald-600" : (v.vehicleType === 'motorcycle' ? "text-indigo-600" : "text-blue-600"))))}>{v.plate}</p>
                           </div>
-                          <p className={cn("text-[10px] font-bold uppercase mt-1", isConfirming ? "text-white/60" : "text-slate-400")}>Ingreso: {v.entryTime ? format(v.entryTime.toDate(), 'HH:mm') : '--:--'}</p>
+                          <p className={cn("text-[10px] font-bold uppercase mt-1", isConfirming ? "text-white/60" : "text-slate-400")}>Ingreso: {v.entryTime ? format(v.entryTime, 'HH:mm') : '--:--'}</p>
                         </div>
                         <div className="text-right">
                           <p className={cn("text-base font-bold", isConfirming ? "text-white" : (isDarkMode ? "text-white" : "text-slate-900"))}>{formatCurrency(calculateAmount(v))}</p>
@@ -2941,7 +2856,7 @@ export default function App() {
                       <div className="flex flex-col items-center">
                         <span className="text-[8px] font-black text-slate-400 uppercase">Ingreso</span>
                         <span className="text-[15px] font-black text-slate-600 dark:text-slate-300">
-                          {confirmingExitVehicle.entryTime ? format(confirmingExitVehicle.entryTime.toDate(), 'HH:mm') : '--:--'}
+                          {confirmingExitVehicle.entryTime ? format(confirmingExitVehicle.entryTime, 'HH:mm') : '--:--'}
                         </span>
                       </div>
                       <div className="flex flex-col items-center">
@@ -2955,7 +2870,7 @@ export default function App() {
                         <span className="text-[15px] font-black text-[#fad947]">
                           {(() => {
                             const now = new Date();
-                            const entry = confirmingExitVehicle.entryTime?.toDate();
+                            const entry = confirmingExitVehicle.entryTime;
                             if (!entry) return '--';
                             const diffMs = now.getTime() - entry.getTime();
                             const diffHrs = Math.floor(diffMs / 3600000);
@@ -3048,20 +2963,20 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className={cn("p-4 rounded-2xl border", isDarkMode ? "bg-slate-800/40 border-slate-800" : "bg-slate-50 border-slate-100/50")}>
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Entrada</p>
-                    <p className="text-lg font-black">{selectedHistoryVehicle.entryTime ? format(selectedHistoryVehicle.entryTime.toDate(), 'HH:mm') : '--:--'}</p>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">{selectedHistoryVehicle.entryTime ? format(selectedHistoryVehicle.entryTime.toDate(), 'dd MMM yyyy', { locale: es }) : ''}</p>
+                    <p className="text-lg font-black">{selectedHistoryVehicle.entryTime ? format(selectedHistoryVehicle.entryTime, 'HH:mm') : '--:--'}</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">{selectedHistoryVehicle.entryTime ? format(selectedHistoryVehicle.entryTime, 'dd MMM yyyy', { locale: es }) : ''}</p>
                   </div>
                   <div className={cn("p-4 rounded-2xl border", isDarkMode ? "bg-slate-800/40 border-slate-800" : "bg-slate-50 border-slate-100/50")}>
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Salida</p>
-                    <p className="text-lg font-black">{selectedHistoryVehicle.exitTime ? format(selectedHistoryVehicle.exitTime.toDate(), 'HH:mm') : '--:--'}</p>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">{selectedHistoryVehicle.exitTime ? format(selectedHistoryVehicle.exitTime.toDate(), 'dd MMM yyyy', { locale: es }) : ''}</p>
+                    <p className="text-lg font-black">{selectedHistoryVehicle.exitTime ? format(selectedHistoryVehicle.exitTime, 'HH:mm') : '--:--'}</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">{selectedHistoryVehicle.exitTime ? format(selectedHistoryVehicle.exitTime, 'dd MMM yyyy', { locale: es }) : ''}</p>
                   </div>
                   <div className={cn("p-4 rounded-2xl border", isDarkMode ? "bg-slate-800/40 border-slate-800" : "bg-slate-50 border-slate-100/50")}>
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Duración</p>
                     <p className="text-lg font-black">
                       {(() => {
                         if (!selectedHistoryVehicle.entryTime || !selectedHistoryVehicle.exitTime) return '--';
-                        const diff = selectedHistoryVehicle.exitTime.toDate().getTime() - selectedHistoryVehicle.entryTime.toDate().getTime();
+                        const diff = selectedHistoryVehicle.exitTime.getTime() - selectedHistoryVehicle.entryTime.getTime();
                         const h = Math.floor(diff / (3600000));
                         const m = Math.floor((diff % 3600000) / 60000);
                         return `${h}h ${m}m`;
@@ -3217,7 +3132,7 @@ export default function App() {
                   {!isConfirmingDeletePass ? (
                     <>
                       <button
-                        onClick={() => handleRenewPass(selectedMonthlyPass.id, selectedMonthlyPass.endDate)}
+                        onClick={() => handleRenewPass(selectedMonthlyPass.id)}
                         className="w-full py-5 bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 rounded-xl"
                       >
                         <CheckCircle2 className="w-5 h-5" />
@@ -3379,7 +3294,7 @@ export default function App() {
       )}>
         {[
           { id: 'monitor', icon: Activity, label: 'Panel' },
-          ...(isSuperAdmin ? [{ id: 'establishments', icon: Building2, label: 'Mis Cocheras' }] : []),
+          ...(canManageEst ? [{ id: 'establishments', icon: Building2, label: 'Mis Cocheras' }] : []),
           { id: 'history', icon: HistoryIcon, label: 'Historial' },
           { id: 'monthly', icon: CheckCircle2, label: 'Abonados' },
           { id: 'reports', icon: Search, label: 'Reportes' },

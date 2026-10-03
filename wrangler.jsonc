@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cocheraflow",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // Desarrollo 100% local: @cloudflare/vite-plugin levanta este Worker con
+  // workerd + D1 local (`.wrangler/state/`) sin cuenta ni credenciales.
+  // El `database_id` de abajo solo se usa al desplegar en remoto.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cocheraflow",
+      // Local: cualquier valor sirve (miniflare lo ignora).
+      // Remoto: reemplazar por el id que devuelva `wrangler d1 create cocheraflow`.
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+
+  "vars": {
+    // Origen de la app; define el dominio de la cookie de sesión.
+    // En producción tiene que ser la URL pública del frontend.
+    "APP_URL": "http://localhost:5173",
+    // Vacío = el login con Google queda deshabilitado (503 google_not_configured).
+    // Para activarlo: poner el client id y `wrangler secret put GOOGLE_CLIENT_SECRET`.
+    "GOOGLE_CLIENT_ID": ""
+  }
+}

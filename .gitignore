@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Estado local de Cloudflare (base SQLite de D1 + caché de workerd)
+.wrangler/
+# Intermedios de @cloudflare/vite-plugin en dev (el build va a dist/)
+isolate/

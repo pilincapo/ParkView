@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Typecheck del cliente
+        run: npm run lint
+
+      - name: Typecheck del Worker
+        run: npm run lint:worker
+
+      # El esquema se aplica contra una D1 local efímera (miniflare), sin
+      # credenciales de Cloudflare. Si el SQL tiene un error de sintaxis o una
+      # tabla/index faltante, falla acá.
+      - name: Aplicar migraciones en una D1 local
+        run: npm run db:migrate:local
+
+      - name: Build
+        run: npm run build
+
+      # El smoke test end-to-end (scripts/smoke.mjs) necesita el server de dev
+      # levantado; se corre a mano con `npm run dev` + `npm run smoke`.
