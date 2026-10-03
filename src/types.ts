@@ -1,9 +1,16 @@
-import { Timestamp } from 'firebase/firestore';
+/**
+ * Tipos de dominio de CocheraFlow.
+ *
+ * Sin dependencia de Firebase: `Timestamp` se reemplaza por `Date` de JS,
+ * que es lo que devuelve el cliente de API tras parsear el ISO 8601 del Worker.
+ */
 
 export enum VehicleStatus {
   ACTIVE = 'active',
   COMPLETED = 'completed',
 }
+
+export type EstablishmentRole = 'owner' | 'manager' | 'operator';
 
 export interface Vehicle {
   id?: string;
@@ -11,8 +18,8 @@ export interface Vehicle {
   slotId: string;
   vehicleType: 'car' | 'motorcycle';
   entryType: 'daily' | 'monthly';
-  entryTime: Timestamp;
-  exitTime: Timestamp | null;
+  entryTime: Date;
+  exitTime: Date | null;
   status: VehicleStatus;
   totalAmount: number;
   ownerId: string;
@@ -23,12 +30,19 @@ export interface MonthlyPass {
   id?: string;
   plate: string;
   vehicleType: 'car' | 'motorcycle';
-  startDate: Timestamp;
-  endDate: Timestamp;
+  startDate: Date;
+  endDate: Date;
   ownerId: string;
   amount: number;
   status: 'active' | 'expired';
   establishmentId: string;
+}
+
+export interface MemberInfo {
+  userId: string;
+  role: EstablishmentRole;
+  email: string;
+  displayName: string | null;
 }
 
 export interface Establishment {
@@ -36,8 +50,11 @@ export interface Establishment {
   name: string;
   address: string;
   ownerId: string;
+  /** UIDs de miembros. Vacío en la API por defecto; ver `members` cargados. */
   members: string[];
   settings: ParkingSettings;
+  /** Rol del usuario actual en esta cochera. */
+  role?: EstablishmentRole;
 }
 
 export interface ParkingSettings {
@@ -50,8 +67,8 @@ export interface ParkingSettings {
   carSlots: number;
   motoSlots: number;
   totalSlots: number; // legacy total
-  updatedBy: string;
-  updatedAt: Timestamp;
+  updatedBy?: string;
+  updatedAt?: Date | string;
 }
 
 export enum OperationType {
@@ -63,14 +80,8 @@ export enum OperationType {
   WRITE = 'write',
 }
 
-export interface FirestoreErrorInfo {
+export interface DataErrorInfo {
   error: string;
   operationType: OperationType;
   path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-  };
 }

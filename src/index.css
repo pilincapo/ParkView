@@ -1,6 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 @import "tailwindcss";
 
+/*
+ * En Tailwind v4 el variant `dark:` por defecto sigue a `prefers-color-scheme`,
+ * es decir al ajuste del SO. La app tiene su propio botón de modo oscuro que
+ * agrega/quita la clase `.dark` en <html>, así que hay que redirigir el
+ * variant a esa clase. Sin esta línea el botón no hacía nada en los elementos
+ * que usaban `dark:*`.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;

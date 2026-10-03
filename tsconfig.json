@@ -22,5 +22,8 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  // El Worker tiene su propio tsconfig con workers-types (no DOM).
+  // Incluirlo acá haría que choque el ambiente de tipos.
+  "exclude": ["node_modules", "worker", "dist"]
 }
