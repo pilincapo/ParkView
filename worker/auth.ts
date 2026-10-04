@@ -24,7 +24,9 @@
 
 const PBKDF2_ITERACIONES = 600_000;
 const SESSION_COOKIE = 'cochera_session';
+const OAUTH_STATE_COOKIE = 'cochera_oauth_state';
 const DURACION_SESION_MS = 1000 * 60 * 60 * 24 * 14; // 14 días
+const DURACION_STATE_MS = 1000 * 60 * 10; // 10 minutos
 
 export interface Usuario {
   id: string;
@@ -156,6 +158,66 @@ export function cookieDeSesion(token: string, protocolo = 'https:'): string {
 
 export function cookieDeSesionVacia(): string {
   return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* OAuth: state anti-CSRF                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * El `state` viaja en una cookie HttpOnly que el navegador manda sola en el
+ * callback. Un atacante que fabricó su propio código OAuth no puede conocerlo,
+ * así que el callback no puede devolver un `state` que coincida.
+ *
+ * Va con `Path=/api/auth/google` para que no viaje en cada request de la app, y
+ * `SameSite=Lax` para que no se adjunte a pedidos de terceros.
+ *
+ * La comparación es de igualdad estricta contra un UUID de 122 bits: no hay
+ * oráculo que sirva y adivinarlo es inviable.
+ */
+export function cookieOAuthState(state: string, protocolo = 'https:'): string {
+  const partes = [
+    `${OAUTH_STATE_COOKIE}=${state}`,
+    'Path=/api/auth/google',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${Math.floor(DURACION_STATE_MS / 1000)}`,
+  ];
+  if (cookieSegura(protocolo)) partes.push('Secure');
+  return partes.join('; ');
+}
+
+export function cookieOAuthStateVacia(protocolo = 'https:'): string {
+  const partes = [
+    `${OAUTH_STATE_COOKIE}=`,
+    'Path=/api/auth/google',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Max-Age=0',
+  ];
+  if (cookieSegura(protocolo)) partes.push('Secure');
+  return partes.join('; ');
+}
+
+/**
+ * ¿El `state` que volvió de Google es el que esta sesión inició?
+ * Se limpia la cookie siempre: haya coincidence o no, no se reusa.
+ */
+export function validarOAuthState(
+  request: Request,
+  stateRecibido: string | null
+): { ok: boolean; cookieParaLimpiar: string } {
+  const esperado = leerCookie(request, OAUTH_STATE_COOKIE);
+  const cookieParaLimpiar = cookieOAuthStateVacia(urlProtocol(request));
+  if (!esperado || !stateRecibido || esperado !== stateRecibido) {
+    return { ok: false, cookieParaLimpiar };
+  }
+  return { ok: true, cookieParaLimpiar };
+}
+
+/** `Response` no expone el Request, así que el protocolo se infiere de la URL. */
+function urlProtocol(request: Request): string {
+  return new URL(request.url).protocol;
 }
 
 export function leerCookie(request: Request, nombre: string): string | null {
