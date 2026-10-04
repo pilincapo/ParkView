@@ -13,6 +13,7 @@
     "db:migrate:local": "wrangler d1 execute cocheraflow --local --file=./migrations/0001_init.sql",
     "db:reset:local": "rm -rf .wrangler/state && npm run db:migrate:local",
     "smoke": "node scripts/smoke.mjs",
+    "test": "node scripts/test-units.mjs",
     "deploy:worker": "wrangler deploy"
   },
   "dependencies": {

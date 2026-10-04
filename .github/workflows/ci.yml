@@ -13,7 +13,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # 22.18+ es el mínimo que importa los .ts de shared/ sin flag
+          # (npm test depende de eso). Con "22" esto depende de cuál sea la
+          # última 22.x del día.
+          node-version: '>=22.18'
           cache: npm
 
       - name: Instalar dependencias
@@ -24,6 +27,11 @@ jobs:
 
       - name: Typecheck del Worker
         run: npm run lint:worker
+
+      # Lógica pura (clamp de fin de mes, tarifas, caducidad). Corre sin
+      # servidor: importa los .ts de shared/ con el type stripping de Node.
+      - name: Tests unitarios
+        run: npm test
 
       # El esquema se aplica contra una D1 local efímera (miniflare), sin
       # credenciales de Cloudflare. Si el SQL tiene un error de sintaxis o una

@@ -43,7 +43,8 @@ import {
   Smartphone,
   Timer,
   Calendar,
-  Monitor
+  Monitor,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -253,20 +254,21 @@ export default function App() {
     }
   }, [selectedEstId, establishments]);
 
-  // Historial. Solo consulta mientras la vista está visible: así no se paga el
-  // read de 15 en 15 s por una pantalla que nadie mira.
+  // Historial. Sin timer: son datos históricos y el refetch ya se dispara tras
+  // cada ingreso, salida o borrado. Pedir 500 filas cada 15 s para pintar 15 en
+  // pantalla era el read más caro de la app sin aportar nada.
   const historyPoll = usePoll(
     async () => {
       const r = await vehiclesApi.historial(selectedEstId!, { limit: 500 });
       return r.vehicles;
     },
     [selectedEstId],
-    { enabled: !!user && !!selectedEstId && activeView === 'history', intervaloMs: POLL_MS }
+    { enabled: !!user && !!selectedEstId && activeView === 'history', intervaloMs: 0 }
   );
   const history = historyPoll.data ?? [];
 
-  // Reportes por rango de fechas. El filtro de operador se manda al servidor
-  // para no traer filas que después se descartan en el cliente.
+  // Reportes por rango de fechas. También sin timer: un reporte es histórico y
+  // ya se refresca al cambiar el rango o el filtro, y tras cada salida.
   const reportPoll = usePoll(
     () =>
       vehiclesApi.reporte(
@@ -276,7 +278,7 @@ export default function App() {
         reportOperator === 'all' ? undefined : reportOperator
       ),
     [selectedEstId, startDate, endDate, reportOperator],
-    { enabled: !!user && !!selectedEstId && activeView === 'reports', intervaloMs: POLL_MS }
+    { enabled: !!user && !!selectedEstId && activeView === 'reports', intervaloMs: 0 }
   );
   const reportData = reportPoll.data ?? [];
 
@@ -1571,6 +1573,22 @@ export default function App() {
                           <option value={user.uid}>MIS OPERACIONES</option>
                         </select>
                       </div>
+                      {/* Esta vista no tiene timer de polling (un reporte es
+                          histórico), así que necesita un botón para traer lo que
+                          otro operador acaba de registrar. */}
+                      <button
+                        type="button"
+                        onClick={() => reportPoll.refetch()}
+                        aria-label="Actualizar reporte"
+                        title="Actualizar reporte"
+                        className={cn(
+                          "w-full md:w-auto px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border-2 border-transparent transition-all active:scale-95",
+                          isDarkMode ? "bg-slate-800 text-slate-200 hover:text-white" : "bg-white text-slate-600 hover:text-slate-900 shadow-sm"
+                        )}
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Actualizar
+                      </button>
                     </div>
                   </div>
 
@@ -1963,6 +1981,21 @@ export default function App() {
                           isDarkMode ? "bg-slate-800 text-white" : "bg-slate-50 text-slate-900"
                         )}
                       />
+                      {/* El historial no tiene timer (ver usePoll.ts): este botón
+                          es lo que trae los ingresos y salidas de otros. */}
+                      <button
+                        type="button"
+                        onClick={() => historyPoll.refetch()}
+                        aria-label="Actualizar historial"
+                        title="Actualizar historial"
+                        className={cn(
+                          "px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border-2 border-transparent transition-all active:scale-95 w-full md:w-auto",
+                          isDarkMode ? "bg-slate-800 text-slate-300 hover:text-white" : "bg-slate-50 text-slate-600 hover:text-slate-900"
+                        )}
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Actualizar
+                      </button>
                     </div>
 
                     {(() => {

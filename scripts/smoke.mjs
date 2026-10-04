@@ -58,6 +58,18 @@ async function api(ruta, { metodo = 'GET', cuerpo, jar = sesion } = {}) {
   return { status: res.status, body: json };
 }
 
+/** Como `api` pero sin seguir redirects: hay que ver el 302 y sus cookies. */
+async function apiSinRedirect(ruta, { metodo = 'GET', cookie: cookieEnv = '' } = {}) {
+  const headers = { 'content-type': 'application/json' };
+  if (cookieEnv) headers.cookie = cookieEnv;
+  const res = await fetch(`${BASE}${ruta}`, { method: metodo, headers, redirect: 'manual' });
+  return {
+    status: res.status,
+    location: res.headers.get('location') ?? '',
+    setCookie: res.headers.get('set-cookie') ?? '',
+  };
+}
+
 /** 32 bytes en base64: el mismo verificador que produce el navegador. */
 function verificador() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
@@ -303,12 +315,52 @@ const ingresoConAbono = await api('/api/vehicles/entry', {
 });
 check('el auto con abono entra como monthly (201)', ingresoConAbono.status === 201, JSON.stringify(ingresoConAbono.body));
 
-/* ------------------------------------------------------------- google */
-const google = await api('/api/auth/google');
+/* ------------------------------------------------------------- google oauth */
+const google = await apiSinRedirect('/api/auth/google');
+if (google.status === 503) {
+  check('sin GOOGLE_CLIENT_ID, /auth/google responde 503 (no rompe la app)', true);
+} else {
+  check(
+    '/auth/google redirige al consent de Google',
+    google.status === 302 && google.location.startsWith('https://accounts.google.com/'),
+    `${google.status} ${google.location.slice(0, 80)}`
+  );
+  check(
+    '/auth/google deja la cookie HttpOnly del state',
+    /cochera_oauth_state=/.test(google.setCookie) && /HttpOnly/.test(google.setCookie),
+    google.setCookie
+  );
+  const stateEnUrl = new URL(google.location).searchParams.get('state');
+  const stateEnCookie = google.setCookie.match(/cochera_oauth_state=([^;]+)/)?.[1];
+  check(
+    'el state de la URL es el mismo que el de la cookie',
+    Boolean(stateEnUrl) && stateEnUrl === stateEnCookie,
+    `url=${stateEnUrl} cookie=${stateEnCookie}`
+  );
+}
+
+// El gate anti-CSRF: sin la cookie, un state inventado no debe abrir sesión.
+const csrf = await apiSinRedirect('/api/auth/google/callback?code=robado&state=forjado');
 check(
-  'sin GOOGLE_CLIENT_ID, /auth/google responde 503 (no rompe la app)',
-  google.status === 503 || google.status === 302,
-  `status ${google.status}`
+  'callback con state forjado y sin cookie se rechaza (CSRF)',
+  csrf.status === 302 && csrf.location.includes('auth_error=state_mismatch'),
+  `${csrf.status} ${csrf.location}`
+);
+check(
+  'el callback limpia la cookie de state al rechazar',
+  /cochera_oauth_state=;/.test(csrf.setCookie),
+  csrf.setCookie
+);
+
+// Control positivo: con el state correcto pasa el gate y falla despues, en el
+// canje con Google. Asi se ve que lo que rechaza el test anterior es el state.
+const conState = await apiSinRedirect('/api/auth/google/callback?code=robado&state=abc123', {
+  cookie: 'cochera_oauth_state=abc123',
+});
+check(
+  'con el state correcto pasa el gate (falla despues, al canjear con Google)',
+  conState.status === 302 && conState.location.includes('auth_error=oauth_failed'),
+  `${conState.status} ${conState.location}`
 );
 
 /* ------------------------------------------------------------- logout */

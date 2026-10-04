@@ -8,6 +8,7 @@
 
 import type { Env } from '../auth';
 import { ApiError, exigirAcceso, exigirUsuario, json, leerBody, manejar } from '../http';
+import { estaVencida, sumarMeses } from '../../shared/dates';
 
 interface FilaPass {
   id: string;
@@ -104,8 +105,9 @@ export async function manejarPasses(
       }
 
       const ahora = new Date();
-      const fin = new Date(ahora);
-      fin.setMonth(fin.getMonth() + meses);
+      // Clampeado: el 31 + 1 mes tiene que dar fin de mes, no el día 3 del mes
+      // siguiente (ver shared/dates.ts).
+      const fin = sumarMeses(ahora, meses);
 
       const id = crypto.randomUUID();
       try {
@@ -161,9 +163,9 @@ export async function manejarPasses(
       const meses = Math.min(Math.max(Math.round(Number(body.months) || 1), 1), 24);
       const ahora = new Date();
       // Si ya venció se renueva desde hoy; si no, se extiende desde el vencimiento.
-      const base = fila.end_date > ahora.toISOString() ? new Date(fila.end_date) : ahora;
-      const fin = new Date(base);
-      fin.setMonth(fin.getMonth() + meses);
+      const base = estaVencida(fila.end_date, ahora) ? ahora : new Date(fila.end_date);
+      // Clampeado: renovar el 31/01 un mes da 28/02, no 3/3 (ver shared/dates.ts).
+      const fin = sumarMeses(base, meses);
 
       await env.DB.prepare(
         `UPDATE monthly_passes

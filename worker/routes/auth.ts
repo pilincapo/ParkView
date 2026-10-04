@@ -9,14 +9,34 @@ import type { Env, Usuario } from '../auth';
 import {
   cookieDeSesion,
   cookieDeSesionVacia,
+  cookieOAuthState,
   crearSesion,
   destruirSesion,
   intercambiarCodigoGoogle,
   salDesdeEmail,
   urlAutorizacionGoogle,
+  validarOAuthState,
 } from '../auth';
 import { ApiError, exigirUsuario, json, leerBody, manejar } from '../http';
 import { usuarioDesdeRequest } from '../auth';
+
+/**
+ * Le agrega una cookie a una respuesta ya construida.
+ *
+ * `Response.redirect()` no acepta headers, y los 302 del flujo de Google
+ * necesitan setear cookies (el `state` al inicio; el state y la sesión al
+ * volver). Se reconstruye la Response para poder hacerlo. Usa `append` y no
+ * `set` porque en el camino feliz conviven dos `set-cookie`.
+ */
+function conCookie(respuesta: Response, cookie: string): Response {
+  const headers = new Headers(respuesta.headers);
+  headers.append('set-cookie', cookie);
+  return new Response(respuesta.body, {
+    status: respuesta.status,
+    statusText: respuesta.statusText,
+    headers,
+  });
+}
 
 interface Credenciales {
   email: string;
@@ -216,14 +236,40 @@ export async function manejarAuth(
       );
     }
     const state = crypto.randomUUID();
-    return Response.redirect(urlAutorizacionGoogle(env, state), 302);
+    // El state también va en una cookie HttpOnly: el callback la compara para
+    // descartar que alguien haya pegado un código OAuth ajeno.
+    // `Response.redirect` no acepta headers, así que el 302 se arma a mano.
+    return new Response(null, {
+      status: 302,
+      headers: {
+        location: urlAutorizacionGoogle(env, state),
+        'set-cookie': cookieOAuthState(state, url.protocol),
+      },
+    });
   }
 
   /* ------------------------------------------------------- google: callback */
   if (ruta === '/google/callback' && request.method === 'GET') {
+    // La validación del `state` va PRIMERO, antes de tocar nada de Google: si el
+    // callback no corresponde a un login iniciado en este navegador, no se
+    // canjea el código ni se abre sesión.
+    const { ok, cookieParaLimpiar } = validarOAuthState(
+      request,
+      url.searchParams.get('state')
+    );
+    if (!ok) {
+      return conCookie(
+        Response.redirect(`${env.APP_URL}/?auth_error=state_mismatch`, 302),
+        cookieParaLimpiar
+      );
+    }
+
     const code = url.searchParams.get('code');
     if (!code) {
-      return Response.redirect(`${env.APP_URL}/?auth_error=missing_code`, 302);
+      return conCookie(
+        Response.redirect(`${env.APP_URL}/?auth_error=missing_code`, 302),
+        cookieParaLimpiar
+      );
     }
 
     try {
@@ -234,17 +280,24 @@ export async function manejarAuth(
       const usuario = await usuarioDesdeGoogle(env, info);
       const token = await crearSesion(env, usuario.id, request);
       // Response.redirect no acepta headers: se construye a mano para poder
-      // setear la cookie de sesión en el mismo 302.
-      return new Response(null, {
-        status: 302,
-        headers: {
-          location: `${env.APP_URL}/`,
-          'set-cookie': cookieDeSesion(token, url.protocol),
-        },
-      });
+      // setear la cookie de sesión en el mismo 302. El state se limpia en
+      // todos los caminos: no se reusa.
+      return conCookie(
+        new Response(null, {
+          status: 302,
+          headers: {
+            location: `${env.APP_URL}/`,
+            'set-cookie': cookieDeSesion(token, url.protocol),
+          },
+        }),
+        cookieParaLimpiar
+      );
     } catch (error) {
       console.error('Fallo Google OAuth:', error);
-      return Response.redirect(`${env.APP_URL}/?auth_error=oauth_failed`, 302);
+      return conCookie(
+        Response.redirect(`${env.APP_URL}/?auth_error=oauth_failed`, 302),
+        cookieParaLimpiar
+      );
     }
   }
 
